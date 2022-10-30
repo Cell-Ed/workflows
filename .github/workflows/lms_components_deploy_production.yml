@@ -1,0 +1,59 @@
+name: LMS Component PUBLISH on NPM
+
+on:
+  workflow_call:
+
+jobs:
+  publish-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14.x"
+          registry-url: https://registry.npmjs.org/
+
+      - name: Process Repository Name
+        uses: ./.github/processRepoName
+        with:
+          S3_BUCKET: celled-lms-dev
+          REPO_NAME: ${{ github.event.repository.name }}
+
+      - name: Validate alpha & beta version.
+        uses: ./.github/validateDependecies
+        with:
+          GITHUB_WORKSPACE: ${{ env.GITHUB_WORKSPACE }}
+
+      - name: Setup npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Prepare package
+        run: CI=true npm run buildComponent
+
+      - name: Publishing package
+        run: |
+          CANDIDATE_VERSION=$(node -p "require('./package.json').version");
+          echo Candidate version: $CANDIDATE_VERSION;
+          if [[ $CANDIDATE_VERSION == *"alpha"* ]];
+          then
+              echo "Alpha version detected";
+              echo "Publishing alpha version";
+              npm publish --tag alpha;
+          elif [[ $CANDIDATE_VERSION == *"beta"* ]];
+          then
+              echo "Beta version detected";
+              echo "Publishing beta version";
+              npm publish --tag beta
+          else
+              echo "Production version detected";
+              echo "Publishing production version";
+              npm publish;
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.LMS_NPM_PUBLISH_TOKEN}}
