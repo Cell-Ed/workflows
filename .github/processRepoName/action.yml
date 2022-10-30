@@ -1,0 +1,15 @@
+name: "Process repo name"
+description: "It extracts from the repository name the Tab name and the widget name and exposes them on environment variables to fit all need it actions on the deployment process."
+author: "Santiago Laza"
+
+inputs:
+  S3_BUCKET:
+    description: "The bucket name, referring its environment."
+    required: true
+  REPO_NAME:
+    description: "The repository name."
+    required: true
+
+runs:
+  using: "node16"
+  main: "dist/index.js"

@@ -1,0 +1,20 @@
+name: "Process repo name"
+description: "It extracts from the repository name the Tab name and the widget name and exposes them on environment variables to fit all need it actions on the deployment process."
+author: "Santiago Laza"
+
+inputs:
+  URL_LMS_API:
+    description: "API endpoint for the current environment."
+    required: true
+  LMS_DIRECTORY_LIST_TOKEN:
+    description: "Token for API auth."
+    required: true
+  TAB_NAME: 
+    description: "The tab name in which the widget is mount, extracted by processRepoName from the repository name."
+    required: true
+  WIDGET_NAME:
+    description: "The widget name, extracted by processRepoName from the repository name."
+    required: true
+runs:
+  using: "node16"
+  main: "dist/index.js"

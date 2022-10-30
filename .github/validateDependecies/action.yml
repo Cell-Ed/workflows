@@ -1,0 +1,11 @@
+name: "validate alpha and beta dependencies."
+description: "It validates all the project dependecies and checks if they are alpha or betas versions installed, it will throw if that is true to prevent pre release version go into production."
+author: "Santiago Laza"
+
+inputs:
+  GITHUB_WORKSPACE:
+    description: "The working directory of the project."
+    required: true
+runs:
+  using: "node16"
+  main: "dist/index.js"
