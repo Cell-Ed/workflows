@@ -1,4 +1,4 @@
-name: LMS Component PUBLISH on NPM
+name: Models PUBLISH on NPM
 
 on:
   workflow_call:
@@ -13,12 +13,6 @@ jobs:
           node-version: "14.x"
           registry-url: https://registry.npmjs.org/
 
-      - name: Process Repository Name
-        uses: ./.github/processRepoName
-        with:
-          S3_BUCKET: celled-lms-dev
-          REPO_NAME: ${{ github.event.repository.name }}
-
       - name: Validate alpha & beta version.
         uses: ./.github/validateDependencies
         with:
@@ -26,15 +20,6 @@ jobs:
 
       - name: Setup npmrc
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run tests
-        run: npm test
-
-      - name: Prepare package
-        run: CI=true npm run buildComponent
 
       - name: Publishing package
         run: |
