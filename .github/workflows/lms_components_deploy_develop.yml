@@ -47,7 +47,7 @@ jobs:
         run: npm test
 
       - name: Build
-        run: npm run buildForJS
+        run: CI=false npm run buildForJS
         # run: CI=true npm run buildForJS
 
       - name: Deploy Micro-frontend
