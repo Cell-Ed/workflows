@@ -36,7 +36,7 @@ jobs:
 
       - name: Publishing package
         run: |
-          CANDIDATE_VERSION=$(node -p "require('./caller_repository/package.json').version");
+          CANDIDATE_VERSION=$(node -p "require('./package.json').version");
           echo Candidate version: $CANDIDATE_VERSION;
           if [[ $CANDIDATE_VERSION == *"alpha"* ]];
           then
