@@ -47,7 +47,8 @@ jobs:
         run: npm test
 
       - name: Build
-        run: CI=true npm run buildForJS
+        run: npm run buildForJS
+        # run: CI=true npm run buildForJS
 
       - name: Deploy Micro-frontend
         uses: reggionick/s3-deploy@v3
