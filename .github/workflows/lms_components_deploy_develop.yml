@@ -53,6 +53,6 @@ jobs:
       - name: Deploy Micro-frontend
         uses: reggionick/s3-deploy@v3
         with:
-          folder: ${{env.BUILD_DIRECTORY}}
+          folder: host/${{env.BUILD_DIRECTORY}}
           bucket: ${{ env.S3_BUCKET_DIRECTORY }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
