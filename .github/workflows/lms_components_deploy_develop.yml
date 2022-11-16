@@ -13,15 +13,19 @@ jobs:
     steps:
       - name: Checkout ${{ github.event.repository.name }}
       - uses: actions/checkout@v3
+
+      - name: Checkout this repo
       - uses: actions/checkout@v3
         with:
           repository: Cell-Ed/workflows
           path: workflows
       - name: Setup npmrc
         run: echo "${{ env.GITHUB_WORKSPACE }}"
+      
       - uses: actions/setup-node@v2
         with:
           node-version: "14"
+
       - name: Process Repository Name
         uses: ./.github/processRepoName
         with:
