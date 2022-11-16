@@ -12,11 +12,16 @@ jobs:
   publish-package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Caller Repository
+        uses: actions/checkout@v3
         with:
-          ref: ${{ inputs.workflows-ref }}
-          path: workflows
+          path: caller_repository
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@v3
+        with:
           repository: Cell-Ed/workflows
+          path: workflows_repository
 
       - uses: actions/setup-node@v2
         with:
@@ -24,7 +29,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - name: Validate alpha & beta version.
-        uses: ./.github/validateDependencies
+        uses: ./workflows_repository/.github/validateDependencies
         with:
           GITHUB_WORKSPACE: ${{ env.GITHUB_WORKSPACE }}
 
@@ -33,7 +38,7 @@ jobs:
 
       - name: Publishing package
         run: |
-          CANDIDATE_VERSION=$(node -p "require('./package.json').version");
+          CANDIDATE_VERSION=$(node -p "require('./caller_repository/package.json').version");
           echo Candidate version: $CANDIDATE_VERSION;
           if [[ $CANDIDATE_VERSION == *"alpha"* ]];
           then
