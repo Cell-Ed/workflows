@@ -14,7 +14,7 @@ jobs:
           registry-url: https://registry.npmjs.org/
 
       - name: Validate alpha & beta version.
-        uses: .github/validateDependencies
+        uses: ./.github/validateDependencies
         with:
           GITHUB_WORKSPACE: ${{ env.GITHUB_WORKSPACE }}
 
