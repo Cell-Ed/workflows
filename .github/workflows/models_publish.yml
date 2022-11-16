@@ -2,12 +2,23 @@ name: Models PUBLISH on NPM
 
 on:
   workflow_call:
+    inputs:
+      workflows-ref:
+        description: "ref of the centralized workflows repo that was specified in 'jobs.<name>.uses'"
+        required: true
+        type: string
 
 jobs:
   publish-package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.workflows-ref }}
+          path: workflows
+          repository: Cell-Ed/workflows
+          token: ${{ secrets.GH_ACCESSTOKEN }}
+          
       - uses: actions/setup-node@v2
         with:
           node-version: "14.x"
