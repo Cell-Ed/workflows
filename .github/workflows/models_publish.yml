@@ -2,15 +2,13 @@ name: Models PUBLISH on NPM
 
 on:
   workflow_call:
-    inputs:
-      workflows-ref:
-        description: "ref of the centralized workflows repo that was specified in 'jobs.<name>.uses'"
-        required: true
-        type: string
 
 jobs:
   publish-package:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caller_repository
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
