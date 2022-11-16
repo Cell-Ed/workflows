@@ -14,7 +14,7 @@ jobs:
       - name: Checkout host repo
         uses: actions/checkout@v3
         with:
-          path: main
+          path: host
 
       - name: Checkout this repo
         uses: actions/checkout@v3
@@ -39,12 +39,15 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: ./host
 
       - name: Run Unit Tests
         run: npm test
+        working-directory: ./host
 
       - name: Build
         run: CI=true npm run buildForJS
+        working-directory: ./host
 
       - name: Deploy Micro-frontend
         uses: reggionick/s3-deploy@v3
