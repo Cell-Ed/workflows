@@ -2,13 +2,25 @@
 
 # Distributed Workflows
 This repository handles the workflows for CI/CD on Cell-Ed.
- # Usage
+# Glossary
+- [Distributed Workflows](#distributed-workflows)
+- [Glossary](#glossary)
+- [Usage](#usage)
+    - [A brief guidance to select a workflow](#a-brief-guidance-to-select-a-workflow)
+    - [Calling a workflow from your repository](#calling-a-workflow-from-your-repository)
+- [Technical Limitations](#technical-limitations)
+- [Naming Conventions](#naming-conventions)
+- [Technical Guidance](#technical-guidance)
+    - [Custom Actions](#custom-actions)
+    - [Checkouts](#checkouts)
+- [Contributed](#contributed)
+# Usage
 From another repository you can call any of the workflows defined here, to do so, please choose one of the current workflows available according to your repository needs.  
-#### A brief guidance to select a workflow can be:
+### A brief guidance to select a workflow
  - Workflows starting with **lms_** are dedicated to the LMS micro-frontend
  - Workflows starting with **models_** are reserved for DB models
  - Workflows starting with **services_** are reserved for micro-services
-#### Calling a workflow from your repository
+### Calling a workflow from your repository
 Depending your trigger conditions in your repository, calling a distributed workflow will look similar to:
 
 	name: Publish
