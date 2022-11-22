@@ -6,14 +6,14 @@ This repository handles the workflows for CI/CD on Cell-Ed.
 - [Distributed Workflows](#distributed-workflows)
 - [Glossary](#glossary)
 - [Usage](#usage)
-    - [A brief guidance to select a workflow](#a-brief-guidance-to-select-a-workflow)
-    - [Calling a workflow from your repository](#calling-a-workflow-from-your-repository)
+		- [A brief guidance to select a workflow](#a-brief-guidance-to-select-a-workflow)
+		- [Calling a workflow from your repository](#calling-a-workflow-from-your-repository)
 - [Technical Limitations](#technical-limitations)
 - [Naming Conventions](#naming-conventions)
 - [Technical Guidance](#technical-guidance)
-    - [Custom Actions](#custom-actions)
-    - [Checkouts](#checkouts)
-- [Contributed](#contributed)
+		- [Custom Actions](#custom-actions)
+		- [Checkouts](#checkouts)
+- [Contributing](#contributing)
 # Usage
 From another repository you can call any of the workflows defined here, to do so, please choose one of the current workflows available according to your repository needs.  
 ### A brief guidance to select a workflow
@@ -41,11 +41,11 @@ Let use **_** to split the markers on a workflow name.
 ![workflows_naming_convention](https://celled-images.s3.us-west-1.amazonaws.com/workflows_naming_convention.png)
 
 # Technical Guidance
-This approach will allow us to scalate and maintain the infrastructure in a much easier way.
+This approach will allow us to scale and maintain the infrastructure in a much easier way.
 Next, a couple of technical aspects to have in mind if we need to code a new workflow:
 
 ### Custom Actions
-If your workflow has to use custom actions, we want those actions to be hosted in this repository. You can create a new folder inside ./github, please name it using camelCase like the others and make sure the name is descriptive enough for everyone to understand what this action does, others may want to use it after! 
+If your workflow has to use ![custom actions](https://docs.github.com/en/actions/creating-actions), we want those actions to be hosted in this repository. You can create a new folder inside ./github, please name it using camelCase like the others and make sure the name is descriptive enough for everyone to understand what this action does, others may want to use it laterwards! 
 ### Checkouts
 If your workflow uses custom actions you will have to perform a double checkout on your workflow to have access to all you need. Here is an example that includes some conventions for us to use in all our workflows. 
 This code block can be copy/paste in almost every workflow. This way we'll always know how to read any workflow.
@@ -67,13 +67,14 @@ This code block can be copy/paste in almost every workflow. This way we'll alway
 				with:
 					repository: Cell-Ed/workflows
 					path: workflows_repository
-The **caller_repository** folder will be created after the checkout and it will contain the branch code from the repository triggering the CI/CD (the caller)
-The **workflows_repository** folder will be created after the checkout and it will contain the main branch code of this repository, allowing us to consume our custom actions.
-This block code also sets the **default directory** on the **caller_repository** folder. This means that all the steps will run on that folder by default (quite convenient). 
-# Contributed
+The ``caller_repository`` folder will be created after the checkout and it will contain the branch code from the repository triggering the CI/CD (the caller)
+The ``workflows_repository`` folder will be created after the checkout and it will contain the main branch code of this repository, allowing us to consume our custom actions.
+This code block above also sets the ``default directory`` on the ``caller_repository`` folder. This means that all the steps will run on that folder by default (quite convenient). 
+# Contributing
  Pushing changes or creating a new workflow should be done with a PR  to main. 
 If your changes are complex, please consider creating a branch for your work and make a PR to staging. After your PR is merged on staging, you can test it from any project you choose by changing the branch on the url this way:
 
     publish-on-npm:
 			uses: Cell-Ed/workflows/.github/workflows/models_publish.yml@staging
-Please notice that this repository has a major impact in all of our infrastructure, even minor changes should be take seriously.
+
+Please notice that this repository has a major impact in all of our infrastructure, even minor changes should be taken seriously.
