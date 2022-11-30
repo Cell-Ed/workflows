@@ -61,5 +61,5 @@ jobs:
         uses: LPMendoza/jest-badges-aws@v1
         with:
           coverage-path: "caller_repository/coverage/coverage-summary.json"
-          aws-bucket: celled-lms-dev
-          aws-bucket-folder: "coverage-badges/${{ env.S3_BUCKET_FOLDER }}"
+          aws-bucket: celled-lms-dev/coverage-badges/${{ env.S3_BUCKET_FOLDER }}
+          aws-bucket-folder: "coverage-badge"
