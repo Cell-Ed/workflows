@@ -62,4 +62,4 @@ jobs:
         with:
           coverage-path: "caller_repository/coverage/coverage-summary.json"
           aws-bucket: celled-lms-dev
-          aws-bucket-folder: /coverage-badges/${{ env.S3_BUCKET_DIRECTORY }}
+          aws-bucket-folder: /coverage-badges/${{ env.S3_BUCKET_FOLDER }}
