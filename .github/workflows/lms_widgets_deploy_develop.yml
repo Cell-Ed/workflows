@@ -1,0 +1,58 @@
+name: LMS Widget deploy to DEVELOP
+
+on:
+  workflow_call:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caller_repository
+    env:
+      REACT_APP_API_ENDPOINT: ${{secrets.STAGING_API_ENDPOINT}}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BUCKET_REGION: us-east-1
+    steps:
+      - name: Checkout Caller Repository
+        uses: actions/checkout@v3
+        with:
+          path: caller_repository
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@v3
+        with:
+          repository: Cell-Ed/workflows
+          path: workflows_repository
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+
+      - name: Process Repository Name
+        uses: ./workflows_repository/.github/processRepoName
+        with:
+          S3_BUCKET: celled-lms-dev
+          REPO_NAME: ${{ github.event.repository.name }}
+
+      - name: Check envs created.
+        run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}}
+
+      - name: Setup npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Build
+        run: CI=true npm run build
+
+      - name: Deploy Micro-frontend
+        uses: reggionick/s3-deploy@v3
+        with:
+          folder: caller_repository/${{env.BUILD_DIRECTORY}}
+          bucket: ${{ env.S3_BUCKET_DIRECTORY }}
+          bucket-region: ${{ env.S3_BUCKET_REGION }}
