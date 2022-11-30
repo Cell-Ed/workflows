@@ -553,6 +553,7 @@ function processRepoName() {
     core.exportVariable('TAB_NAME', TAB_NAME)
     core.exportVariable('WIDGET_NAME', WIDGET_NAME)
     core.exportVariable('REACT_APP_URL_BASE', `/dashboard/${TAB_NAME}/`)
+    core.exportVariable('S3_BUCKET_FOLDER', `${TAB_NAME}/${WIDGET_NAME}`)
     core.exportVariable('S3_BUCKET_DIRECTORY', `${S3_BUCKET}/${TAB_NAME}/${WIDGET_NAME}`)
     core.exportVariable('BUILD_DIRECTORY', `build/${WIDGET_NAME}`)
 }
