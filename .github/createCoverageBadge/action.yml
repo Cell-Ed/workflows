@@ -1,0 +1,6 @@
+name: "Create coverage badge."
+description: "It creates an svg badge to show a project coverage"
+author: "Santiago Laza"
+runs:
+  using: "node16"
+  main: "dist/index.js"
