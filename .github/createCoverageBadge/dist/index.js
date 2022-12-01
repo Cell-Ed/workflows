@@ -9009,6 +9009,7 @@ var __webpack_exports__ = {};
 const core = __nccwpck_require__(2186);
 const axios = __nccwpck_require__(8757);
 const fs = __nccwpck_require__(7147);
+const path = __nccwpck_require__(1017)
 
 const downloadImage = async () => {
   const url = 'https://img.shields.io/badge/-93%25-important.svg'
@@ -9022,8 +9023,11 @@ const downloadImage = async () => {
     }
   })
   fs.writeFile('coverageBadge.svg', response.data, (err) => {
-    console.log(err);
+    if (err) console.log(err);
+    console.log(__nccwpck_require__.ab + "coverageBadge.svg");
+    core.info(__nccwpck_require__.ab + "coverageBadge.svg")
   })
+
 }
 
 downloadImage()  
