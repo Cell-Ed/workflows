@@ -50,7 +50,7 @@ jobs:
       - name: Create Coverage Badge
         uses: ./workflows_repository/.github/createCoverageBadge
         with:
-          COVERAGE_REPORT: ./coverage/coverage-summary.json
+          COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
 
       - name: Deploy Coverage Badge
         uses: reggionick/s3-deploy@v3

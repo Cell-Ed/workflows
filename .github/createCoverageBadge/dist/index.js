@@ -9008,18 +9008,20 @@ var __webpack_exports__ = {};
 (() => {
 const core = __nccwpck_require__(2186);
 const axios = __nccwpck_require__(8757);
-const { writeFile, mkdir } = __nccwpck_require__(7147);
+const { writeFile, readFile, mkdir } = __nccwpck_require__(7147);
 const { promisify } = __nccwpck_require__(3837)
 const path = __nccwpck_require__(1017)
 
+const readFileAsync = promisify(readFile)
 const writeFileAsync = promisify(writeFile)
 const mkdirAsync = promisify(mkdir)
 
 const downloadImage = async () => {
   const url = 'https://img.shields.io/badge/-93%25-important.svg'
   try {
-    const report = JSON.parse(core.getInput('COVERAGE_REPORT', { require: true }))
+    const reportPath = core.getInput('COVERAGE_REPORT_PATH', { require: true })
     const label = core.getInput('LABEL')
+    const report = await readFileAsync(path.resolve(reportPath))
     console.log(report);
     console.log(report.total);
     const {

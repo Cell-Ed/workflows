@@ -3,8 +3,8 @@ description: "It creates an svg badge to show a project coverage"
 author: "Santiago Laza"
 
 inputs:
-  COVERAGE_REPORT:
-    description: "Jest coverage report in Json format."
+  COVERAGE_REPORT_PATH:
+    description: "The path to the Jest coverage report in Json format."
     required: true
   LABEL:
     description: "An optional label to set at the left of the percentage."
