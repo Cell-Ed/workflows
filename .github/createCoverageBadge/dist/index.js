@@ -9021,7 +9021,7 @@ const downloadImage = async () => {
   try {
     const reportPath = core.getInput('COVERAGE_REPORT_PATH', { require: true })
     const label = core.getInput('LABEL')
-    const report = await readFileAsync(path.resolve(reportPath))
+    const report = JSON.parse(await readFileAsync(path.resolve(reportPath)))
     console.log(report);
     console.log(report.total);
     const {
