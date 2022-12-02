@@ -9008,11 +9008,12 @@ var __webpack_exports__ = {};
 (() => {
 const core = __nccwpck_require__(2186);
 const axios = __nccwpck_require__(8757);
-const { writeFile } = __nccwpck_require__(7147);
+const { writeFile, mkdir } = __nccwpck_require__(7147);
 const { promisify } = __nccwpck_require__(3837)
 const path = __nccwpck_require__(1017)
 
 const writeFileAsync = promisify(writeFile)
+const mkdirAsync = promisify(mkdir)
 
 const downloadImage = async () => {
   const url = 'https://img.shields.io/badge/-93%25-important.svg'
@@ -9025,7 +9026,8 @@ const downloadImage = async () => {
         "accept-encoding": "deflate"
       }
     })
-    await writeFileAsync(path.join(__dirname, 'coverageBadge.svg'), response.data)
+    await mkdirAsync(path.join(__dirname, '/badge'), { recursive: true })
+    await writeFileAsync(path.join(__dirname, 'badge/coverageBadge.svg'), response.data)
     console.log(path.resolve('coverageBadge.svg'));
     core.info(path.resolve('coverageBadge.svg'))
   } catch (err) {
