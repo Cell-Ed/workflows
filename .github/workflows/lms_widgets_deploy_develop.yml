@@ -43,7 +43,9 @@ jobs:
           echo "$PWD"
           cd ..
           echo "$PWD"
-          cat ./workflows_repository/.github/createCoverageBadge/dist/coverageBadge.svg
+          cd workflows_repository/.github/createCoverageBadge/dist/
+          echo "$PWD"
+          cat coverageBadge.svg
 
       - name: Check envs created.
         run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} S3_BUCKET_FOLDER=#{{env.S3_BUCKET_FOLDER}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}}
