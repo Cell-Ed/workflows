@@ -9023,7 +9023,6 @@ const downloadImage = async () => {
       }
     })
     const badge = await fs.writeFile('coverageBadge.svg', response.data)
-    if (err) console.log(err);
     console.log(__nccwpck_require__.ab + "coverageBadge.svg");
     core.info(__nccwpck_require__.ab + "coverageBadge.svg")
     core.info(badge)
