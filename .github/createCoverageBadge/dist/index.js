@@ -9022,7 +9022,7 @@ const downloadImage = async () => {
       "accept-encoding": "deflate"
     }
   })
-  fs.writeFile('coverageBadge.svg', response.data, (err) => {
+  fs.writeFileSync('coverageBadge.svg', response.data, (err) => {
     if (err) console.log(err);
     console.log(__nccwpck_require__.ab + "coverageBadge.svg");
     core.info(__nccwpck_require__.ab + "coverageBadge.svg")
