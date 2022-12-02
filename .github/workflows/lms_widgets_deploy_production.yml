@@ -35,7 +35,7 @@ jobs:
           S3_BUCKET: celled-lms-prod
           REPO_NAME: ${{ github.event.repository.name }}
       - name: Check envs created.
-        run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}} GITHUB_WORKSPACE=${{ env.GITHUB_WORKSPACE }}
+        run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}}
 
       - name: Validate alpha & beta version.
         uses: ./workflows_repository/.github/validateDependencies
