@@ -40,7 +40,7 @@ jobs:
       - name: Validate alpha & beta version.
         uses: ./workflows_repository/.github/validateDependencies
         with:
-          GITHUB_WORKSPACE: ${{ env.GITHUB_WORKSPACE }}
+          GITHUB_WORKSPACE: "caller_repository"
 
       - name: Setup npmrc
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
