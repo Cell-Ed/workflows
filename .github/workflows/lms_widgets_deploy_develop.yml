@@ -38,14 +38,12 @@ jobs:
       - name: Create Coverage Badge
         uses: ./workflows_repository/.github/createCoverageBadge
 
-      - name: check badge
-        run: | 
-          echo "$PWD"
-          cd ..
-          echo "$PWD"
-          cd workflows_repository/.github/createCoverageBadge/dist/
-          echo "$PWD"
-          cat coverageBadge.svg
+      - name: Deploy Badge
+        uses: reggionick/s3-deploy@v3
+        with:
+          folder: workflows_repository/.github/createCoverageBadge/dist
+          bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
+          bucket-region: ${{ env.S3_BUCKET_REGION }}
 
       - name: Check envs created.
         run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} S3_BUCKET_FOLDER=#{{env.S3_BUCKET_FOLDER}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}}
@@ -69,9 +67,9 @@ jobs:
           bucket: ${{ env.S3_BUCKET_DIRECTORY }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
 
-      - name: Generating Jest Badge and upload it to AWS
-        uses: LPMendoza/jest-badges-aws@v1
-        with:
-          coverage-path: "caller_repository/coverage/coverage-summary.json"
-          aws-bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
-          aws-bucket-folder: "coverage-badge"
+      # - name: Generating Jest Badge and upload it to AWS
+      #   uses: LPMendoza/jest-badges-aws@v1
+      #   with:
+      #     coverage-path: "caller_repository/coverage/coverage-summary.json"
+      #     aws-bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
+      #     aws-bucket-folder: "coverage-badge"
