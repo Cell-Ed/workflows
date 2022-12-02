@@ -9016,36 +9016,70 @@ const readFileAsync = promisify(readFile)
 const writeFileAsync = promisify(writeFile)
 const mkdirAsync = promisify(mkdir)
 
+const axiosConfig = {
+  responseType: 'image/svg+xml',
+  headers: {
+    "accept-encoding": "deflate"
+  }
+}
+
+const generateBadgeColor = (percent) => {
+  const green = { r: 0, g: 255, b: 0 }
+  const red = { r: 255, g: 0, b: 0 }
+  const delta = percent / 100;
+  const r = Math.round(red.r + (green.r - red.r) * delta);
+  const g = Math.round(red.g + (green.g - red.g) * delta);
+  const b = Math.round(red.b + (green.b - red.b) * delta);
+
+  return { r, g, b };
+};
+
+
 const downloadImage = async () => {
-  const url = 'https://img.shields.io/badge/-93%25-important.svg'
   try {
     const reportPath = core.getInput('COVERAGE_REPORT_PATH', { require: true })
+    const badgeGeneratorServerUrl = core.getInput('BADGE_GENERATOR_SERVER_URL') || 'https://img.shields.io'
     const label = core.getInput('LABEL')
     const report = JSON.parse(await readFileAsync(path.resolve(reportPath)))
-    console.log(report);
-    console.log(report.total);
     const {
       statements: { pct: statementsPct },
       lines: { pct: linesPct },
       functions: { pct: functionsPct },
       branches: { pct: branchesPct }
     } = report.total
-    console.log(statementsPct, linesPct, functionsPct, branchesPct);
-    const response = await axios({
-      url,
-      method: 'GET',
-      responseType: 'image/svg+xml',
-      headers: {
-        "accept-encoding": "deflate"
-      }
-    })
-    await mkdirAsync(path.join(__dirname, '/badge'), { recursive: true })
-    await writeFileAsync(path.join(__dirname, 'badge/coverageBadge.svg'), response.data)
-    console.log(path.resolve('coverageBadge.svg'));
-    core.info(path.resolve('coverageBadge.svg'))
+    const percents = [statementsPct, linesPct, functionsPct, branchesPct]
+    const finalPercent = (percents.reduce((acc, percentage) => {
+      if (typeof percentage === 'number' && percentage) acc += percentage
+      return acc
+    }, 0) / 4).toFixed(1)
+    const value = (() => {
+      const pct = `${finalPercent}%`
+      if (finalPercent < 10) return `💀 ${pct}`
+      if (finalPercent < 20) return `👶🏽 ${pct}`
+      if (finalPercent < 40) return `🧒🏽 ${pct}`
+      if (finalPercent < 60) return `🧑🏽 ${pct}`
+      if (finalPercent < 80) return `🕵🏽 ${pct}`
+      if (finalPercent <= 100) return `⚔️🛡️ ${pct}`
+    })()
+    const { r, g, b } = generateBadgeColor(finalPercent)
+    const urlColor = `rgb(${r} ${g} ${b})`
+    const urlParamsWithLabel = label ? `${label}-${value}-${urlColor}` : null
+    const urlParamsWithoutLabel = `-${value}-${urlColor}`
+    const badgeGeneratorUrl = (params) => encodeURI(`${badgeGeneratorServerUrl}/badge/${params}.svg`)
+    const [badgeWithoutLabel, badgeWithLabel] = await Promise.all([
+      axios.get(badgeGeneratorUrl(urlParamsWithoutLabel), axiosConfig),
+      urlParamsWithLabel ? axios.get(badgeGeneratorUrl(urlParamsWithLabel), axiosConfig) : null,
+      mkdirAsync(path.join(__dirname, '/badge'), { recursive: true })
+    ])
+    await Promise.all([
+      writeFileAsync(path.join(__dirname, 'badge/coverageBadgeWithoutLabel.svg'), badgeWithoutLabel.data),
+      badgeWithLabel ? await writeFileAsync(path.join(__dirname, 'badge/coverageBadgeWithLabel.svg'), badgeWithLabel.data) : null
+
+    ])
+    core.info('badges created and stored in:' + path.resolve('coverageBadge.svg'))
   } catch (err) {
-    console.warn(err);
     core.error(err)
+    core.setFailed(err)
   }
 }
 

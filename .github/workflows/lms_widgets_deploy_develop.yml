@@ -51,6 +51,7 @@ jobs:
         uses: ./workflows_repository/.github/createCoverageBadge
         with:
           COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
+          LABEL: "Test coverage:"
 
       - name: Deploy Coverage Badge
         uses: reggionick/s3-deploy@v3
@@ -68,10 +69,3 @@ jobs:
           folder: caller_repository/${{env.BUILD_DIRECTORY}}
           bucket: ${{ env.S3_BUCKET_DIRECTORY }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
-
-      # - name: Generating Jest Badge and upload it to AWS
-      #   uses: LPMendoza/jest-badges-aws@v1
-      #   with:
-      #     coverage-path: "caller_repository/coverage/coverage-summary.json"
-      #     aws-bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
-      #     aws-bucket-folder: "coverage-badge"
