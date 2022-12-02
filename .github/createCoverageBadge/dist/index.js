@@ -9018,7 +9018,7 @@ const mkdirAsync = promisify(mkdir)
 const downloadImage = async () => {
   const url = 'https://img.shields.io/badge/-93%25-important.svg'
   try {
-    const report = core.getInput('COVERAGE_REPORT', { require: true })
+    const report = JSON.parse(core.getInput('COVERAGE_REPORT', { require: true }))
     const label = core.getInput('LABEL')
     console.log(report);
     console.log(report.total);
