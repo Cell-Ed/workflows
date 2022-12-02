@@ -44,7 +44,20 @@ jobs:
         run: npm install
 
       - name: Run Unit Tests
-        run: npm test
+        run: npm test ./ -- --coverage
+
+      - name: Create Coverage Badge
+        uses: ./workflows_repository/.github/createCoverageBadge
+        with:
+          COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
+          LABEL: "Test coverage:"
+
+      - name: Deploy Coverage Badge
+        uses: reggionick/s3-deploy@v3
+        with:
+          folder: workflows_repository/.github/createCoverageBadge/dist/badge
+          bucket: celled-lms-staging/github-badges/${{ env.S3_BUCKET_FOLDER }}
+          bucket-region: ${{ env.S3_BUCKET_REGION }}
 
       - name: Build
         run: CI=true npm run buildForJS
