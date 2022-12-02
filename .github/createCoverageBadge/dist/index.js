@@ -9018,6 +9018,17 @@ const mkdirAsync = promisify(mkdir)
 const downloadImage = async () => {
   const url = 'https://img.shields.io/badge/-93%25-important.svg'
   try {
+    const report = core.getInput('COVERAGE_REPORT', { require: true })
+    const label = core.getInput('LABEL')
+    console.log(report);
+    console.log(report.total);
+    const {
+      statements: { pct: statementsPct },
+      lines: { pct: linesPct },
+      functions: { pct: functionsPct },
+      branches: { pct: branchesPct }
+    } = report.total
+    console.log(statementsPct, linesPct, functionsPct, branchesPct);
     const response = await axios({
       url,
       method: 'GET',

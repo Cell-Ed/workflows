@@ -35,16 +35,6 @@ jobs:
           S3_BUCKET: celled-lms-dev
           REPO_NAME: ${{ github.event.repository.name }}
 
-      - name: Create Coverage Badge
-        uses: ./workflows_repository/.github/createCoverageBadge
-
-      - name: Deploy Badge
-        uses: reggionick/s3-deploy@v3
-        with:
-          folder: workflows_repository/.github/createCoverageBadge/dist/badge
-          bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
-          bucket-region: ${{ env.S3_BUCKET_REGION }}
-
       - name: Check envs created.
         run: TAB_NAME=${{env.TAB_NAME}} WIDGET_NAME=${{ env.WIDGET_NAME}} REACT_APP_URL_BASE=${{env.REACT_APP_URL_BASE}} S3_BUCKET_DIRECTORY=${{env.S3_BUCKET_DIRECTORY}} S3_BUCKET_FOLDER=#{{env.S3_BUCKET_FOLDER}} BUILD_DIRECTORY=${{env.BUILD_DIRECTORY}}
 
@@ -56,6 +46,18 @@ jobs:
 
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
+
+      - name: Create Coverage Badge
+        uses: ./workflows_repository/.github/createCoverageBadge
+        with:
+          COVERAGE_REPORT: ./coverage/coverage-summary.json
+
+      - name: Deploy Coverage Badge
+        uses: reggionick/s3-deploy@v3
+        with:
+          folder: workflows_repository/.github/createCoverageBadge/dist/badge
+          bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
+          bucket-region: ${{ env.S3_BUCKET_REGION }}
 
       - name: Build
         run: CI=true npm run build
