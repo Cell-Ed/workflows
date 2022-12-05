@@ -51,7 +51,7 @@ jobs:
         uses: ./workflows_repository/.github/createCoverageBadge
         with:
           COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
-          LABEL: "Test coverage:"
+          LABEL: "Develop:"
 
       - name: Deploy Coverage Badge
         uses: reggionick/s3-deploy@v3
