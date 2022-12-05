@@ -41,7 +41,7 @@ jobs:
       - name: Validate alpha & beta version.
         uses: ./workflows_repository/.github/validateDependencies
         with:
-          GITHUB_WORKSPACE: ${{ env.GITHUB_WORKSPACE }}
+          GITHUB_WORKSPACE: "caller_repository"
 
       - name: Setup npmrc
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
@@ -62,7 +62,7 @@ jobs:
         uses: reggionick/s3-deploy@v3
         with:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
-          bucket: celled-lms-prod/github-badges/${{ env.S3_BUCKET_FOLDER }}
+          bucket: celled-lms-docs/github-badges/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
 
       - name: Build
