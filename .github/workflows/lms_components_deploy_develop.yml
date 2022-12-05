@@ -56,7 +56,7 @@ jobs:
         uses: reggionick/s3-deploy@v3
         with:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
-          bucket: celled-lms-dev/github-badges/${{ env.S3_BUCKET_FOLDER }}
+          bucket: celled-lms-docs/github-badges/dev/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
 
       - name: Build
