@@ -9054,7 +9054,7 @@ const downloadImage = async () => {
     }, 0) / 4).toFixed(1)
     const value = (() => {
       const pct = `${finalPercent}%`
-      if (finalPercent < 10) return `💀 ${pct}`
+      if (finalPercent < 10 || !finalPercent) return `💀 ${pct}`
       if (finalPercent < 20) return `👶🏽 ${pct}`
       if (finalPercent < 40) return `🧒🏽 ${pct}`
       if (finalPercent < 60) return `🧑🏽 ${pct}`
