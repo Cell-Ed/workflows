@@ -64,7 +64,7 @@ jobs:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
           bucket: celled-lms-docs/github-badges/prod/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
-          noCache: true
+          'no-cache': true
 
       - name: Build
         run: CI=true npm run buildForJS
