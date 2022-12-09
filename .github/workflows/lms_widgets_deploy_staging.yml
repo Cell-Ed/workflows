@@ -61,6 +61,12 @@ jobs:
           bucket: celled-lms-docs/github-badges/staging/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
           'no-cache': true
+      
+      - name: refresh badges
+        uses: b3b00/refreshBadgesAction@v1.0.7
+        with:
+          repository : 'Cell-Ed/${{ github.event.repository.name }}'
+          branch: staging
 
       - name: Build
         run: CI=true npm run build
