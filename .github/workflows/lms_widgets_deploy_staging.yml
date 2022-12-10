@@ -41,10 +41,10 @@ jobs:
       - name: Setup npmrc
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
 
-      - name: Create Coverage Badge
+      - name: Clean Coverage Badge Cache
         uses: ./workflows_repository/.github/cleanGithubImagesCache
         with:
-          COVERAGE_REPORT_PATH: "caller_repository/README.md"
+          README_PATH: "caller_repository/README.md"
 
       - name: Install dependencies
         run: npm install

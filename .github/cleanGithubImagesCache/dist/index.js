@@ -35349,9 +35349,7 @@ const axiosConfig = {
 
 const cleanCache = async () => {
   try {
-    const readmePath = process.env.NODE_ENV === 'develop'
-      ? core.getInput('README_PATH')
-      : 'README.md'
+    const readmePath = core.getInput('README_PATH')
     console.log('readmePath:', readmePath);
     const readme = await readFileAsync(readmePath)
     const $ = cheerio.load(readme)
