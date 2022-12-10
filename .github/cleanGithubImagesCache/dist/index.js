@@ -35354,8 +35354,8 @@ const cleanCache = async () => {
     const readme = await readFileAsync(readmePath)
     const $ = cheerio.load(readme)
     $("img[src]").each((idx, el) => {
-      console.log('src: ', el["attribs"]["src"])
-      console.log('CANONICAL-src: ', el["attribs"]["data-canonical-src"])
+      console.log('src: ', el["attribs"])
+    //   console.log('CANONICAL-src: ', el["attribs"]["data-canonical-src"])
     })
   } catch (err) {
 
