@@ -41,6 +41,11 @@ jobs:
       - name: Setup npmrc
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.LMS_NPM_AUTOMATION_TOKEN}}" > .npmrc
 
+      - name: Create Coverage Badge
+        uses: ./workflows_repository/.github/cleanGithubImagesCache
+        with:
+          COVERAGE_REPORT_PATH: "caller_repository/README.md"
+
       - name: Install dependencies
         run: npm install
 
@@ -60,12 +65,12 @@ jobs:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
           bucket: celled-lms-docs/github-badges/staging/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
-          'no-cache': true
-      
+          "no-cache": true
+
       - name: refresh badges
         uses: b3b00/refreshBadgesAction@v1.0.7
         with:
-          repository : 'Cell-Ed/${{ github.event.repository.name }}'
+          repository: "Cell-Ed/${{ github.event.repository.name }}"
           branch: staging
 
       - name: Build

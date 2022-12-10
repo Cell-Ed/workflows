@@ -1,0 +1,12 @@
+name: "Clean Badges Cache."
+description: "It cleans the badges cache."
+author: "Santiago Laza"
+
+inputs:
+  README_PATH:
+    description: "The path to the README.md file."
+    required: true
+
+runs:
+  using: "node16"
+  main: "dist/index.js"
