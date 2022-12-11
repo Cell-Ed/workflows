@@ -3,9 +3,11 @@ description: "It cleans the badges cache."
 author: "Santiago Laza"
 
 inputs:
-  README_PATH:
-    description: "The path to the README.md file."
+  GH_TOKEN:
+    description: "The github token to make secured calls to api.github."
     required: true
+  REPO_NAME:
+    description: "The repository name, including company's name. E.g: Cell-Ed/lms.learner.notes"
 
 runs:
   using: "node16"

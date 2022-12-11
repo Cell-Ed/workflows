@@ -44,7 +44,8 @@ jobs:
       - name: Clean Coverage Badge Cache
         uses: ./workflows_repository/.github/cleanGithubImagesCache
         with:
-          README_PATH: "caller_repository/README.md"
+          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
 
       - name: Install dependencies
         run: npm install
