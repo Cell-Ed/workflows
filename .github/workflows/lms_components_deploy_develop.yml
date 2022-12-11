@@ -52,7 +52,7 @@ jobs:
           COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
           LABEL: "Develop:"
           BADGE_GENERATOR_SERVER_URL: ${{ secrets.IMG_SHIELDS_GENERATOR_SERVER_URL }}
-          
+
       - name: Deploy Coverage Badge
         uses: reggionick/s3-deploy@v3
         with:
@@ -60,6 +60,12 @@ jobs:
           bucket: celled-lms-docs/github-badges/dev/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
           "no-cache": true
+
+      - name: Clean Coverage Badge Cache
+        uses: ./workflows_repository/.github/cleanGithubImagesCache
+        with:
+          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
 
       - name: Build
         run: CI=true npm run buildForJS

@@ -60,7 +60,13 @@ jobs:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
           bucket: celled-lms-docs/github-badges/dev/${{ env.S3_BUCKET_FOLDER }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
-          'no-cache': true
+          "no-cache": true
+
+      - name: Clean Coverage Badge Cache
+        uses: ./workflows_repository/.github/cleanGithubImagesCache
+        with:
+          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
 
       - name: Build
         run: CI=true npm run build

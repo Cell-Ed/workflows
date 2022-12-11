@@ -51,7 +51,7 @@ jobs:
         uses: ./workflows_repository/.github/createCoverageBadge
         with:
           COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
-          LABEL: "Staging:"
+          LABEL: "Staging Test 1:"
           BADGE_GENERATOR_SERVER_URL: ${{ secrets.IMG_SHIELDS_GENERATOR_SERVER_URL }}
 
       - name: Deploy Coverage Badge
