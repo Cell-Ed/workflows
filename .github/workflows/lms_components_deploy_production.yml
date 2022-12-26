@@ -5,7 +5,7 @@ on:
 jobs:
   run:
     # Only deploy from main branch
-    if: "!contains(github.ref, alpha) && !contains(github.ref, beta)"
+    # if: "!contains(github.ref, alpha) && !contains(github.ref, beta)"
     runs-on: ubuntu-latest
     defaults:
       run:
