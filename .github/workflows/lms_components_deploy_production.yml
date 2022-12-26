@@ -19,7 +19,7 @@ jobs:
       S3_BUCKET_REGION: us-east-1
     steps:
       - name: Check version
-        uses: |
+        run: |
           contains(github.ref, alpha) == false && contains(github.ref, beta) == false
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
