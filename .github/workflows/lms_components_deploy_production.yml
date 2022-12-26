@@ -2,7 +2,7 @@ name: LMS Component deploy to PRODUCTION
 
 on:
   workflow_call:
-
+    branches: main
 jobs:
   run:
     # Only deploy from main branch
