@@ -6,7 +6,7 @@ on:
 jobs:
   run:
     # Only deploy from main branch
-    if: contains(github.ref, 'alpha')
+    if: "!contains(github.ref, 'alpha')"
     runs-on: ubuntu-latest
     defaults:
       run:
