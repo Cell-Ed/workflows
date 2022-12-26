@@ -6,8 +6,8 @@ on:
 jobs:
   run:
     # Only deploy from main branch
-    if: |
-      contains(github.ref, alpha) == false && contains(github.ref, beta) == false
+    if: ${{ !contains((github.ref, alpha) && !contains((github.ref, beta) }} 
+      # contains(github.ref, alpha) == false && contains(github.ref, beta) == false
     runs-on: ubuntu-latest
     defaults:
       run:
