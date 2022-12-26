@@ -5,6 +5,9 @@ on:
 
 jobs:
   run:
+   # Only deploy from final version. Prevent alpha or beta version on prod.
+    if: >
+      contains(github.ref, 'alpha') == false && contains(github.ref, 'beta') == false
     runs-on: ubuntu-latest
     defaults:
       run:
