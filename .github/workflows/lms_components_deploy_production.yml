@@ -6,8 +6,8 @@ on:
 jobs:
   run:
     # Only deploy from main branch
-    if: ${{ !contains((github.ref, alpha) && !contains((github.ref, beta) }} 
-      # contains(github.ref, alpha) == false && contains(github.ref, beta) == false
+    # if: ${{ !contains((github.ref, alpha) && !contains((github.ref, beta) }}
+    # contains(github.ref, alpha) == false && contains(github.ref, beta) == false
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -18,6 +18,9 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BUCKET_REGION: us-east-1
     steps:
+      - name: Check version
+        uses: |
+          contains(github.ref, alpha) == false && contains(github.ref, beta) == false
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
         with:
