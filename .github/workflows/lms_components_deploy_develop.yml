@@ -10,6 +10,7 @@ jobs:
       run:
         working-directory: caller_repository
     env:
+      REACT_APP_API_ENDPOINT: ${{secrets.STAGING_API_ENDPOINT}}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BUCKET_REGION: us-east-1
