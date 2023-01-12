@@ -9,6 +9,12 @@ jobs:
     defaults:
       run:
         working-directory: caller_repository
+    env:
+      URL_LMS_API: https://portal.cell-ed.com
+      REACT_APP_API_ENDPOINT: ${{ secrets.PROD_API_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BUCKET_REGION: us-east-1
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
