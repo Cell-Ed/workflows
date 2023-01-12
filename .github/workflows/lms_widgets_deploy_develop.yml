@@ -70,8 +70,6 @@ jobs:
 
       - name: Build
         run: CI=true npm run build
-        env:
-          REACT_APP_API_ENDPOINT: https://api.staging.cell-ed.cloud
 
       - name: Deploy Micro-frontend
         uses: reggionick/s3-deploy@v3
