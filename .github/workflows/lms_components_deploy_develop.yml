@@ -70,8 +70,6 @@ jobs:
 
       - name: Build
         run: CI=true npm run buildForJS
-        env:
-          REACT_APP_API_ENDPOINT: ${{secrets.STAGING_API_ENDPOINT}}
 
       - name: Deploy Micro-frontend
         uses: reggionick/s3-deploy@v3
