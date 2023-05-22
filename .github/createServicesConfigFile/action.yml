@@ -1,0 +1,11 @@
+name: "Create Services Config File."
+description: "It creates a yml file for services to be deployed and expose the service name an env."
+author: "Santiago Laza"
+
+inputs:
+  REPO_NAME:
+    description: "The repository name."
+    required: true
+runs:
+  using: "node16"
+  main: "dist/index.js"
