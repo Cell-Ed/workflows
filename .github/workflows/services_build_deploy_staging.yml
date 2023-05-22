@@ -30,7 +30,8 @@ jobs:
           ref: main
 
       - run: |
-          cp -r ../repo-templates/template ./caller_repository/template
+          ls -a
+          cp -r ../repo-templates/template ./template
           rm -rf ../repo-templates
 
       - name: Define ENV VARS
