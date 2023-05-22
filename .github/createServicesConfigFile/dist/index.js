@@ -2828,7 +2828,6 @@ const mkdirAsync = promisify(mkdir);
 const createConfigFile = async () => {
   try {
     // const REPO_NAME = 'services.account.api'
-    console.log(serviceName);
     const REPO_NAME = core.getInput('REPO_NAME')
     const SERVICE_NAME = REPO_NAME.replaceAll('.', '-')
 
