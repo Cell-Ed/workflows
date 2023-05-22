@@ -65,8 +65,8 @@ jobs:
           ref: main
 
       - run: |
-          cp -r ./caller_repository/repo-templates/template ./caller_repository/template
-          rm -rf ./caller_repository/repo-templates
+          cp -r ./repo-templates/template ./caller_repository/template
+          rm -rf ./repo-templates
 
       - name: Run shrinkwrap build
         run: |
