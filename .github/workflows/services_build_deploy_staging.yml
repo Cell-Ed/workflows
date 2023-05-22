@@ -21,6 +21,18 @@ jobs:
           repository: Cell-Ed/workflows
           path: workflows_repository
 
+      - name: Checkout Templates Repository
+        uses: actions/checkout@v3
+        with:
+          repository: Cell-Ed/openfaas-templates
+          path: repo-templates
+          token: ${{ secrets.ACTIONS_CI_CD_ACCESS_TOKEN }}
+          ref: main
+
+      - run: |
+          cp -r ../repo-templates/template ./caller_repository/template
+          rm -rf ../repo-templates
+
       - name: Define ENV VARS
         id: define_env
         run: echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c 1-7)" >> $GITHUB_OUTPUT
@@ -55,18 +67,6 @@ jobs:
 
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
-
-      - name: Pull template
-        uses: actions/checkout@v2
-        with:
-          repository: Cell-Ed/openfaas-templates
-          path: repo-templates
-          token: ${{ secrets.ACTIONS_CI_CD_ACCESS_TOKEN }}
-          ref: main
-
-      - run: |
-          cp -r ./repo-templates/template ./caller_repository/template
-          rm -rf ./repo-templates
 
       - name: Run shrinkwrap build
         run: |
@@ -103,4 +103,3 @@ jobs:
           faas-cli deploy -f ./caller_repository/services-learner-api.yml --tag sha --gateway ${{ secrets.OPENFAAS_GATEWAY_STAGING }}
         env:
           DOCKER_USER: celled
-
