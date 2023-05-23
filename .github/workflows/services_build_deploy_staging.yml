@@ -9,6 +9,10 @@ jobs:
     defaults:
       run:
         working-directory: caller_repository
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BADGES_BUCKET_REGION: us-east-1
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
@@ -86,7 +90,7 @@ jobs:
         with:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
           bucket: micro-services-docs/github-badges/staging/${{ env.SERVICE_NAME }}
-          bucket-region: us-east-1
+          bucket-region: ${{ env.S3_BADGES_BUCKET_REGION }}
           "no-cache": true
 
       - name: Clean Coverage Badge Cache
