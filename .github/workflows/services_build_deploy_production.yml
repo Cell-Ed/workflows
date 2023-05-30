@@ -76,7 +76,7 @@ jobs:
 
       - name: Run shrinkwrap build
         run: |
-          faas-cli build -f ../workflows_repository/.github/createServicesConfigFile/dist/config_file/${{ env.SERVICE_NAME }}.yml \
+          faas-cli build -f ./${{ env.SERVICE_NAME }}.yml \
           --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
 
       - name: Login to OpenFaaS Gateway
@@ -106,6 +106,6 @@ jobs:
 
       - name: Deploy the function
         run: |
-          faas-cli deploy -f ../workflows_repository/.github/createServicesConfigFile/dist/config_file/${{ env.SERVICE_NAME }}.yml --tag sha --gateway ${{ secrets.OPENFAAS_GATEWAY_PROD }}
+          faas-cli deploy -f ./${{ env.SERVICE_NAME }}.yml --tag sha --gateway ${{ secrets.OPENFAAS_GATEWAY_PROD }}
         env:
           DOCKER_USER: celled
