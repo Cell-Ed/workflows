@@ -11,6 +11,7 @@ jobs:
         working-directory: caller_repository
     env:
       REACT_APP_API_ENDPOINT: ${{secrets.STAGING_API_ENDPOINT}}
+      URL_LMS_API: https://dev-portal.cell-ed.com
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BUCKET_REGION: us-east-1
@@ -77,3 +78,11 @@ jobs:
           folder: caller_repository/${{env.BUILD_DIRECTORY}}
           bucket: ${{ env.S3_BUCKET_DIRECTORY }}
           bucket-region: ${{ env.S3_BUCKET_REGION }}
+          
+      - name: Update Directory List LMS
+        uses: ./workflows_repository/.github/updateDirectoryListLMS
+        with:
+          URL_LMS_API: ${{ env.URL_LMS_API }}
+          LMS_DIRECTORY_LIST_TOKEN: ${{ secrets.LMS_DIRECTORY_LIST_TOKEN }}
+          TAB_NAME: ${{env.TAB_NAME }}
+          WIDGET_NAME: ${{ env.WIDGET_NAME }}
