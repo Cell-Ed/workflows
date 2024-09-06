@@ -3,6 +3,9 @@ name: Micro-service deploy to STAGING
 on:
   workflow_call:
 
+env:
+  APP_ENV: stg
+
 jobs:
   func-build:
     runs-on: ubuntu-latest
@@ -98,6 +101,13 @@ jobs:
         with:
           GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
           REPO_NAME: ${{ github.repository }}
+
+      - name: Create .env File if Exists
+        run: |
+          if [ -f ".env.$APP_ENV" ]; then
+            mv -f ".env.$APP_ENV" .env
+            rm -f .env.*
+          fi  
 
       - name: Run shrinkwrap build
         run: |
