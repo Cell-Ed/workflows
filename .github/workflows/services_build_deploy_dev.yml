@@ -107,6 +107,7 @@ jobs:
           if [ -f ".env.$APP_ENV" ]; then
             mv -f ".env.$APP_ENV" .env
             rm -f .env.*
+            cat .env
           fi     
 
       - name: Run shrinkwrap build
