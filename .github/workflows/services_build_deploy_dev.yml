@@ -3,6 +3,9 @@ name: Micro-service deploy to Develop
 on:
   workflow_call:
 
+env:
+  APP_ENV: dev
+
 jobs:
   func-build:
     runs-on: ubuntu-latest
@@ -98,6 +101,14 @@ jobs:
         with:
           GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
           REPO_NAME: ${{ github.repository }}
+
+      - name: Create .env File if Exists
+        run: |
+          if [ -f ".env.$APP_ENV" ]; then
+            mv -f ".env.$APP_ENV" .env
+            rm -f .env.*
+            cat .env
+          fi     
 
       - name: Run shrinkwrap build
         run: |

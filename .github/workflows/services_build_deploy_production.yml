@@ -3,6 +3,9 @@ name: Micro-service deploy to PROD
 on:
   workflow_call:
 
+env:
+  APP_ENV: prod
+
 jobs:
   func-build:
     runs-on: ubuntu-latest
@@ -73,6 +76,14 @@ jobs:
         uses: ./workflows_repository/.github/createServicesConfigFile
         with:
           REPO_NAME: ${{ github.event.repository.name }}
+
+      - name: Create .env File if Exists
+        run: |
+          if [ -f ".env.$APP_ENV" ]; then
+            mv -f ".env.$APP_ENV" .env
+            rm -f .env.*
+            cat .env
+          fi  
 
       - name: Run shrinkwrap build
         run: |
