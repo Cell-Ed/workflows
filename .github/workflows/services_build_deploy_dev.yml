@@ -18,18 +18,18 @@ jobs:
       S3_BADGES_BUCKET_REGION: us-east-1
     steps:
       - name: Checkout Caller Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: caller_repository
 
       - name: Checkout Workflows Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: Cell-Ed/workflows
           path: workflows_repository
 
       - name: Checkout Templates Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: Cell-Ed/openfaas-templates
           path: repo-templates
@@ -49,9 +49,9 @@ jobs:
         run: curl -sLSf https://cli.openfaas.com | sudo sh
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.6.0
+        uses: supercharge/mongodb-github-action@1.11.0
         with:
-          mongodb-version: 4.4
+          mongodb-version: 7.0.14
           mongodb-replica-set: rs0
 
       - name: Install mongoTools
@@ -89,7 +89,7 @@ jobs:
           BADGE_GENERATOR_SERVER_URL: ${{ secrets.IMG_SHIELDS_GENERATOR_SERVER_URL }}
 
       - name: Deploy Coverage Badge
-        uses: reggionick/s3-deploy@v3
+        uses: reggionick/s3-deploy@v4
         with:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
           bucket: micro-services-docs/github-badges/dev/${{ env.SERVICE_NAME }}
@@ -122,16 +122,16 @@ jobs:
 
       - name: Login to DockerHub
         if: success()
-        uses: docker/login-action@v1
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and Push the OpenFaaS function
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@v6
         with:
           context: caller_repository/build/${{ env.SERVICE_NAME }}/
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
