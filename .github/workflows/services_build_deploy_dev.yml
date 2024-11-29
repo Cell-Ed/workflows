@@ -81,6 +81,11 @@ jobs:
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
 
+    - name: Start Shields Server with Docker to run inside the runner
+      run: |
+        docker run -p 15080:8080 --env PORT=8080 --name shields ghcr.io/badges/shields:stable
+        sleep 5
+
       - name: Create Coverage Badge
         uses: ./workflows_repository/.github/createCoverageBadge
         with:
