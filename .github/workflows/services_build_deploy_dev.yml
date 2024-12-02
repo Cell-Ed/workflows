@@ -83,7 +83,7 @@ jobs:
 
       - name: Start Shields Server with Docker to run inside the runner
         run: |
-          docker run -p 15080:8080 --env PORT=8080 --name shields ghcr.io/badges/shields:next
+          docker run -d -p 15080:8080 --env PORT=8080 --name shields ghcr.io/badges/shields:next
           sleep 5
 
       - name: Create Coverage Badge
