@@ -15,6 +15,10 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BUCKET_REGION: us-east-1
+      SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
+      SHIELDS_HOST_PORT: 15080
+      SHIELDS_CONTAINER_PORT: 8080
+      SHIELDS_URL: http://localhost:15080      
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
@@ -50,12 +54,12 @@ jobs:
 
       - name: Start shields.io Server
         run: |
-          docker run -d -p 15080:8080 --env PORT=8080 --name shields ghcr.io/badges/shields:next
-          until curl -s http://localhost:15080 > /dev/null; do
+          docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
+          until curl -s ${{ env.SHIELDS_URL }} > /dev/null; do
             echo "Waiting for container to be ready..."
             sleep 1
           done
-          echo "Container is ready!"
+          echo "Shields.io container is ready!"
 
       - name: Create Coverage Badge
         uses: ./workflows_repository/.github/createCoverageBadge
