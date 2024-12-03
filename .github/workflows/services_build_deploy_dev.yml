@@ -81,7 +81,7 @@ jobs:
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
 
-      - name: Start Shields Server with Docker to run inside the runner
+      - name: Start shields.io Server
         run: |
           docker run -d -p 15080:8080 --env PORT=8080 --name shields ghcr.io/badges/shields:next
           sleep 5
