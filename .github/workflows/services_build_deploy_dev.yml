@@ -16,6 +16,10 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BADGES_BUCKET_REGION: us-east-1
+      SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
+      SHIELDS_HOST_PORT: 15080
+      SHIELDS_CONTAINER_PORT: 8080
+      SHIELDS_URL: http://localhost:15080
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v4
@@ -80,6 +84,15 @@ jobs:
 
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
+
+      - name: Start shields.io Server
+        run: |
+          docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
+          until curl -s ${{ env.SHIELDS_URL }} > /dev/null; do
+            echo "Waiting for Shields.io container to be ready..."
+            sleep 1
+          done
+          echo "Shields.io container is ready!"
 
       - name: Create Coverage Badge
         uses: ./workflows_repository/.github/createCoverageBadge
