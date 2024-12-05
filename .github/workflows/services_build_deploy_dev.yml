@@ -88,7 +88,7 @@ jobs:
       - name: Start shields.io Server
         run: |
           docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
-          until curl -s ${{ env.SHIELDS_Server_URL }} > /dev/null; do
+          until curl -s ${{ env.SHIELDS_SERVER_URL }} > /dev/null; do
             echo "Waiting for Shields.io container to be ready..."
             sleep 1
           done
