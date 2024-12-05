@@ -18,7 +18,7 @@ jobs:
       SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
       SHIELDS_HOST_PORT: 15080
       SHIELDS_CONTAINER_PORT: 8080
-      SHIELDS_URL: http://localhost:15080      
+      SHIELDS_SERVER_URL: http://localhost:15080      
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v3
@@ -55,7 +55,7 @@ jobs:
       - name: Start shields.io Server
         run: |
           docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
-          until curl -s ${{ env.SHIELDS_URL }} > /dev/null; do
+          until curl -s ${{ env.SHIELDS_SERVER_URL }} > /dev/null; do
             echo "Waiting for Shields.io container to be ready..."
             sleep 1
           done
@@ -66,7 +66,7 @@ jobs:
         with:
           COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
           LABEL: "Develop:"
-          BADGE_GENERATOR_SERVER_URL: ${{ secrets.IMG_SHIELDS_GENERATOR_SERVER_URL }}
+          BADGE_GENERATOR_SERVER_URL: ${{ env.SHIELDS_SERVER_URL }}
 
       - name: Deploy Coverage Badge
         uses: reggionick/s3-deploy@v3
