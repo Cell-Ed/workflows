@@ -12,6 +12,15 @@ jobs:
     defaults:
       run:
         working-directory: caller_repository
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      S3_BADGES_BUCKET_REGION: us-east-1
+      SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
+      SHIELDS_HOST_PORT: 15080
+      SHIELDS_CONTAINER_PORT: 8080
+      SHIELDS_SERVER_URL: http://localhost:15080
+
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v4
@@ -69,13 +78,43 @@ jobs:
           ls -lta
           cat package.json
 
-      - name: Run Unit Tests
-        run: npm test ./ -- --coverage
-
       - name: Create Config File
         uses: ./workflows_repository/.github/createServicesConfigFile
         with:
           REPO_NAME: ${{ github.event.repository.name }}
+
+      - name: Run Unit Tests
+        run: npm test ./ -- --coverage
+
+      - name: Start shields.io Server
+        run: |
+          docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
+          until curl -s ${{ env.SHIELDS_SERVER_URL }} > /dev/null; do
+            echo "Waiting for Shields.io container to be ready..."
+            sleep 1
+          done
+          echo "Shields.io container is ready!"
+
+      - name: Create Coverage Badge
+        uses: ./workflows_repository/.github/createCoverageBadge
+        with:
+          COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
+          LABEL: "Production:"
+          BADGE_GENERATOR_SERVER_URL: ${{ env.SHIELDS_SERVER_URL }}
+
+      - name: Deploy Coverage Badge
+        uses: reggionick/s3-deploy@v4
+        with:
+          folder: workflows_repository/.github/createCoverageBadge/dist/badge
+          bucket: micro-services-docs/github-badges/prod/${{ env.SERVICE_NAME }}
+          bucket-region: ${{ env.S3_BADGES_BUCKET_REGION }}
+          "no-cache": true
+
+      - name: Clean Coverage Badge Cache
+        uses: ./workflows_repository/.github/cleanGithubImagesCache
+        with:
+          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
 
       - name: Create .env File if Exists
         run: |
