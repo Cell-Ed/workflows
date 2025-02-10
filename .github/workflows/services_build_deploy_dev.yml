@@ -145,9 +145,10 @@ jobs:
             NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
 
       - name: AWS SSM Send-Command
-        uses: forgedconcepts/aws-ssm-send-command-action@master
+        uses: forgedconcepts/aws-ssm-send-command-action@main
         id: ssm
         with:
+          aws-region: us-east-1
           targets: |
             [{
               "Key": "resource-groups:Name",
