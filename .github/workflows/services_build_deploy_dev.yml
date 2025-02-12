@@ -17,6 +17,9 @@ on:
 env:
   APP_ENV: dev
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  AWS_RESOURCE_GROUP_NAME: Microservices-Dev-ResourceGroup
+  AWS_REGION: us-east-1
+  AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
 jobs:
   func-build:
@@ -128,8 +131,8 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::921614945575:role/github-actions-role
-          aws-region: us-east-1
+          role-to-assume: ${{ env.AWS_SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
       
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -146,6 +149,7 @@ jobs:
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           build-args: |
             NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
+          platforms: linux/amd64
 
       - name: AWS SSM Send-Command
         uses: forgedconcepts/aws-ssm-send-command-action@main
@@ -155,7 +159,7 @@ jobs:
           targets: |
             [{
               "Key": "resource-groups:Name",
-              "Values": ["Microservices-Dev-ResourceGroup"]
+              "Values": ["${{ env.AWS_RESOURCE_GROUP_NAME }}"]
             },
             {
               "Key": "resource-groups:ResourceTypeFilters",
