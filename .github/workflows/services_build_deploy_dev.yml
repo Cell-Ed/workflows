@@ -2,11 +2,6 @@ name: Micro-service deploy to Develop
 
 on:
   workflow_call:
-    inputs: 
-      service_name:
-        description: 'Service name'
-        required: true
-        type: string
     secrets:
       ACTIONS_CI_CD_ACCESS_TOKEN:
         required: true
@@ -115,7 +110,7 @@ jobs:
         uses: reggionick/s3-deploy@v4
         with:
           folder: workflows_repository/.github/createCoverageBadge/dist/badge
-          bucket: micro-services-docs/github-badges/dev/${{ inputs.service_name }}
+          bucket: micro-services-docs/github-badges/dev/${{ env.SERVICE_NAME }}
           bucket-region: ${{ env.S3_BADGES_BUCKET_REGION }}
           "no-cache": true
 
@@ -134,7 +129,7 @@ jobs:
           fi  
       - name: Run shrinkwrap build
         run: |
-          faas-cli build -f ./${{ inputs.service_name }}.yml \
+          faas-cli build -f ./${{ env.SERVICE_NAME }}.yml \
           --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
       
       - name: Configure AWS Credentials
@@ -152,8 +147,8 @@ jobs:
       - name: Build and Push the OpenFaaS function
         uses: docker/build-push-action@v6
         with:
-          context: caller_repository/build/${{ inputs.service_name }}/
-          file: caller_repository/build/${{ inputs.service_name }}/Dockerfile
+          context: caller_repository/build/${{ env.SERVICE_NAME }}/
+          file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           build-args: |
