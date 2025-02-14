@@ -123,6 +123,13 @@ jobs:
           GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
           REPO_NAME: ${{ github.repository }}
 
+      - name: Create .env File if Exists
+        run: |
+          if [ -f ".env.$APP_ENV" ]; then
+            mv -f ".env.$APP_ENV" .env
+            rm -f .env.*
+            cat .env
+          fi  
       - name: Run shrinkwrap build
         run: |
           faas-cli build -f ./${{ inputs.service_name }}.yml \
