@@ -69,9 +69,9 @@ jobs:
         run: curl -sLSf https://cli.openfaas.com | sudo sh
 
       - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.6.0
+        uses: supercharge/mongodb-github-action@1.11.0
         with:
-          mongodb-version: 4.4
+          mongodb-version: 7.0.14
           mongodb-replica-set: rs0
 
       - name: Install mongoTools
