@@ -1,4 +1,9 @@
-name: Micro-service deploy to Develop
+# This workflow builds and deploys Cell-Ed's legacy Open FaaS services
+# leveraging language-specific templates such as Node16 or Python. 
+# For services using the Dockerfile template please make sure to use the newer and
+# non-legacy workflow. 
+
+name: (legacy) Micro-service deploy to Develop
 
 on:
   workflow_call:
