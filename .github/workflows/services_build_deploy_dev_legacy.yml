@@ -95,8 +95,8 @@ jobs:
       - name: Build and Push the OpenFaaS function
         uses: docker/build-push-action@v6
         with:
-          context: ./build/${{ env.SERVICE_NAME }}/
-          file: ./build/${{ env.SERVICE_NAME }}/Dockerfile
+          context: caller_repository/build/${{ env.SERVICE_NAME }}/
+          file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           build-args: |
