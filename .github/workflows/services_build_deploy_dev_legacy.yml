@@ -68,12 +68,12 @@ jobs:
         run: curl -sLSf https://cli.openfaas.com | sudo sh
 
       - name: Setup npmrc
-        run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > .npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > ./src/.npmrc
 
       - name: Install dependencies
         run: |
           cd src
-          NODE_ENV=production npm ci
+          npm ci
 
       - name: Run shrinkwrap build
         run: |
