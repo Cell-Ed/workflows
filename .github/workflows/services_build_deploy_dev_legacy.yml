@@ -27,7 +27,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: caller_repository/src
+        working-directory: caller_repository
     env:
       S3_BADGES_BUCKET_REGION: us-east-1
     steps:
@@ -52,8 +52,8 @@ jobs:
 
       - run: |
           ls -a
-          cp -r ../../repo-templates/template ./template
-          rm -rf ../../repo-templates
+          cp -r ../repo-templates/template ./src/template
+          rm -rf ../repo-templates
 
       - name: Define ENV VARS
         id: define_env
@@ -71,11 +71,13 @@ jobs:
         run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > .npmrc
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          cd src
+          npm ci
 
       - name: Run shrinkwrap build
         run: |
-          faas-cli build -f ../${{ env.SERVICE_NAME }}.yml \
+          faas-cli build -f ./${{ env.SERVICE_NAME }}.yml \
           --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
       
       - name: Configure AWS Credentials
