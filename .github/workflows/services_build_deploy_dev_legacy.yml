@@ -52,8 +52,8 @@ jobs:
 
       - run: |
           ls -a
-          cp -r ~/repo-templates/template ./template
-          rm -rf ~/repo-templates
+          cp -r ../../repo-templates/template ./template
+          rm -rf ../../repo-templates
 
       - name: Define ENV VARS
         id: define_env
@@ -75,7 +75,7 @@ jobs:
 
       - name: Run shrinkwrap build
         run: |
-          faas-cli build -f ~/caller_repository/${{ env.SERVICE_NAME }}.yml \
+          faas-cli build -f ../${{ env.SERVICE_NAME }}.yml \
           --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
       
       - name: Configure AWS Credentials
@@ -93,8 +93,8 @@ jobs:
       - name: Build and Push the OpenFaaS function
         uses: docker/build-push-action@v6
         with:
-          context: caller_repository/build/${{ env.SERVICE_NAME }}/
-          file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
+          context: ./build/${{ env.SERVICE_NAME }}/
+          file: ./build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           build-args: |
