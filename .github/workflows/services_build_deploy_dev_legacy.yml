@@ -73,7 +73,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd src
-          npm ci
+          NODE_ENV=production npm ci
 
       - name: Run shrinkwrap build
         run: |
