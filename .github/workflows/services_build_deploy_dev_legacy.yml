@@ -1,0 +1,120 @@
+name: Micro-service deploy to Develop
+
+on:
+  workflow_call:
+    secrets:
+      ACTIONS_CI_CD_ACCESS_TOKEN:
+        required: true
+      NPM_CI_CD_ACCESS_TOKEN:
+        required: true
+env:
+  APP_ENV: dev
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  AWS_RESOURCE_GROUP_NAME: Microservices-Dev-ResourceGroup
+  AWS_REGION: us-east-1
+  AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
+
+jobs:
+  func-build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # REQUIRED for OIDC
+      contents: read
+    defaults:
+      run:
+        working-directory: caller_repository/src
+    env:
+      S3_BADGES_BUCKET_REGION: us-east-1
+    steps:
+      - name: Checkout Caller Repository
+        uses: actions/checkout@v4
+        with:
+          path: caller_repository
+
+      - name: Checkout Workflows Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Cell-Ed/workflows
+          path: workflows_repository
+
+      - name: Checkout Templates Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Cell-Ed/openfaas-templates
+          path: repo-templates
+          token: ${{ secrets.ACTIONS_CI_CD_ACCESS_TOKEN }}
+          ref: main
+
+      - run: |
+          ls -a
+          cp -r ~/repo-templates/template ./template
+          rm -rf ~/repo-templates
+
+      - name: Define ENV VARS
+        id: define_env
+        run: |
+          GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c 1-7)
+          echo "GITHUB_SHA_SHORT=$GITHUB_SHA_SHORT" >> $GITHUB_ENV
+          SERVICE_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]' | tr '.' '-')
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "SERVICE_TAG=$SERVICE_NAME:latest-$GITHUB_SHA_SHORT" >> $GITHUB_ENV
+
+      - name: Get faas-cli
+        run: curl -sLSf https://cli.openfaas.com | sudo sh
+
+      - name: Setup npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > .npmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run shrinkwrap build
+        run: |
+          faas-cli build -f ~/caller_repository/${{ env.SERVICE_NAME }}.yml \
+          --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Push the OpenFaaS function
+        uses: docker/build-push-action@v6
+        with:
+          context: caller_repository/build/${{ env.SERVICE_NAME }}/
+          file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
+          push: true
+          tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
+          build-args: |
+            NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
+          platforms: linux/amd64
+
+      - name: AWS SSM Send-Command
+        uses: forgedconcepts/aws-ssm-send-command-action@main
+        id: ssm
+        with:
+          aws-region: us-east-1
+          targets: |
+            [{
+              "Key": "resource-groups:Name",
+              "Values": ["${{ env.AWS_RESOURCE_GROUP_NAME }}"]
+            },
+            {
+              "Key": "resource-groups:ResourceTypeFilters",
+              "Values": ["AWS::EC2::Instance"]
+            }]
+          document-name: AWS-RunShellScript
+          parameters: |
+            {"commands":["runuser -l ubuntu -c 'cd /home/ubuntu/microservices && /bin/bash /home/ubuntu/microservices/deploy-service.sh  ${{ env.SERVICE_TAG }} | tee /home/ubuntu/microservices/deploy-${{ github.run_id }}.log' "],"workingDirectory":["/home/ubuntu/microservices"],"executionTimeout":["3600"]}
+
+      # Catch SSM outputs
+      - name: Get the outputs
+        run: echo "${{ steps.vars.outputs.branch }} The Command id is ${{ steps.ssm.outputs.command-id }}"
+
