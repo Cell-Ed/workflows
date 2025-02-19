@@ -123,5 +123,5 @@ jobs:
 
       # Catch SSM outputs
       - name: Get the outputs
-        run: echo "${{ steps.vars.outputs.branch }} The Command id is ${{ steps.ssm.outputs.command-id }}"
+        run: echo "${{ steps }} ${{ steps.vars.outputs }} The Command id is ${{ steps.ssm.outputs }}"
 
