@@ -121,9 +121,9 @@ jobs:
           parameters: |
             {"commands":["runuser -l ubuntu -c 'cd /home/ubuntu/microservices && /bin/bash /home/ubuntu/microservices/deploy-service.sh  ${{ env.SERVICE_TAG }} | tee /home/ubuntu/microservices/deploy-${{ github.run_id }}.log' "],"workingDirectory":["/home/ubuntu/microservices"],"executionTimeout":["3600"]}
 
-      - name: Output (Formatted)
+      - name: Output
         run: |
-          echo "## SSM Command Output" >> $GITHUB_STEP_SUMMARY
+          echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           printf "%b\n" "${{ steps.ssm.outputs.output }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
