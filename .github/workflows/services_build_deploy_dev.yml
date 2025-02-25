@@ -144,11 +144,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Debug Session
-        run: |
-          pwd
-          ls -la
-          cat .npmrc
       - name: Build and Push the OpenFaaS function
         uses: docker/build-push-action@v6
         with:
