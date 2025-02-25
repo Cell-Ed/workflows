@@ -157,7 +157,7 @@ jobs:
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           secret-files: |
-            NPMRC=caller_repository/.npmrc
+            npmrc=caller_repository/.npmrc
           platforms: linux/amd64
 
 # --secret id=npmrc,src=$HOME/.npmrc \
