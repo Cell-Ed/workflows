@@ -148,8 +148,7 @@ jobs:
         run: |
           pwd
           ls -la
-          ls -la caller_repository
-          cat caller_repository/.npmrc
+          cat .npmrc
       - name: Build and Push the OpenFaaS function
         uses: docker/build-push-action@v6
         with:
