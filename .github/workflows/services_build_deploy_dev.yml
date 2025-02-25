@@ -156,8 +156,8 @@ jobs:
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
-          secrets: |
-            id=npmrc,src=caller_repository/.npmrc
+          secret-files: |
+            key=npmrcFile,npmrc=caller_repository/.npmrc
           platforms: linux/amd64
 
       - name: AWS SSM Send-Command
