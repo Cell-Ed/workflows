@@ -157,8 +157,10 @@ jobs:
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           secret-files: |
-            key=npmrcFile,npmrc=caller_repository/.npmrc
+            NPMRC=caller_repository/.npmrc
           platforms: linux/amd64
+
+# --secret id=npmrc,src=$HOME/.npmrc \
 
       - name: AWS SSM Send-Command
         uses: forgedconcepts/aws-ssm-send-command-action@main
