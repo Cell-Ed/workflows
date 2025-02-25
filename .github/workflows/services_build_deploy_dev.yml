@@ -159,8 +159,7 @@ jobs:
           secret-files: |
             npmrc=caller_repository/.npmrc
           platforms: linux/amd64
-
-# --secret id=npmrc,src=$HOME/.npmrc \
+          no-cache: true
 
       - name: AWS SSM Send-Command
         uses: forgedconcepts/aws-ssm-send-command-action@main
