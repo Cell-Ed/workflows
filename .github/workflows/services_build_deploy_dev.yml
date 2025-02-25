@@ -151,8 +151,8 @@ jobs:
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
-          build-args: |
-            NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
+          secrets: |
+            id=npmrc,src=.npmrc
           platforms: linux/amd64
 
       - name: AWS SSM Send-Command
