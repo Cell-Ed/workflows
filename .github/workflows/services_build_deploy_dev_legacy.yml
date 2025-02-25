@@ -99,9 +99,10 @@ jobs:
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
-          build-args: |
-            NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
+          secret-files: |
+            npmrc=caller_repository/src/.npmrc
           platforms: linux/amd64
+          no-cache: true
 
       - name: AWS SSM Send-Command
         uses: forgedconcepts/aws-ssm-send-command-action@main
