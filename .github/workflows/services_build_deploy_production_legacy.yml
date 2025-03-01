@@ -3,7 +3,7 @@
 # For services using the Dockerfile template please make sure to use the newer and
 # non-legacy workflow. 
 
-name: (legacy) Micro-service deploy to Develop
+name: (legacy) Micro-service deploy to Production
 
 on:
   workflow_call:
@@ -13,9 +13,9 @@ on:
       NPM_CI_CD_ACCESS_TOKEN:
         required: true
 env:
-  APP_ENV: dev
+  APP_ENV: prod
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  AWS_RESOURCE_GROUP_NAME: Microservices-Dev-ResourceGroup
+  AWS_RESOURCE_GROUP_NAME: microservices-production-rg-v1
   AWS_REGION: us-east-1
   AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
