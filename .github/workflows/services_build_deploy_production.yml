@@ -12,7 +12,7 @@ on:
 env:
   APP_ENV: prod
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  AWS_RESOURCE_GROUP_NAME: microservices-prod-rg-v1
+  AWS_RESOURCE_GROUP_NAME: microservices-production-rg-v1
   AWS_REGION: us-east-1
   AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
