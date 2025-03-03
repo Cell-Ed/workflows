@@ -10,7 +10,7 @@ on:
       SHIELDS_GH_TOKEN:
         required: true
 env:
-  APP_ENV: staging
+  APP_ENV: stg
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
   AWS_RESOURCE_GROUP_NAME: microservices-staging-rg-v1
   AWS_REGION: us-east-1
