@@ -1,26 +1,36 @@
-name: Micro-service deploy to STAGING
+name: Micro-service deploy to Staging
 
 on:
   workflow_call:
-
+    secrets:
+      ACTIONS_CI_CD_ACCESS_TOKEN:
+        required: true
+      NPM_CI_CD_ACCESS_TOKEN:
+        required: true
+      SHIELDS_GH_TOKEN:
+        required: true
 env:
   APP_ENV: stg
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  AWS_RESOURCE_GROUP_NAME: microservices-staging-rg-v1
+  AWS_REGION: us-east-1
+  AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
 jobs:
   func-build:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # REQUIRED for OIDC
+      contents: read
     defaults:
       run:
         working-directory: caller_repository
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       S3_BADGES_BUCKET_REGION: us-east-1
       SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
       SHIELDS_HOST_PORT: 15080
       SHIELDS_CONTAINER_PORT: 8080
       SHIELDS_SERVER_URL: http://localhost:15080
-
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v4
@@ -48,7 +58,12 @@ jobs:
 
       - name: Define ENV VARS
         id: define_env
-        run: echo "GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c 1-7)" >> $GITHUB_OUTPUT
+        run: |
+          GITHUB_SHA_SHORT=$(echo $GITHUB_SHA | cut -c 1-7)
+          echo "GITHUB_SHA_SHORT=$GITHUB_SHA_SHORT" >> $GITHUB_ENV
+          SERVICE_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]' | tr '.' '-')
+          echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
+          echo "SERVICE_TAG=$SERVICE_NAME:$GITHUB_SHA_SHORT" >> $GITHUB_ENV
 
       - name: Get faas-cli
         run: curl -sLSf https://cli.openfaas.com | sudo sh
@@ -71,17 +86,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Debug
-        run: |
-          pwd
-          ls -lta
-          cat package.json
-
-      - name: Create Config File
-        uses: ./workflows_repository/.github/createServicesConfigFile
-        with:
-          REPO_NAME: ${{ github.event.repository.name }}
 
       - name: Run Unit Tests
         run: npm test ./ -- --coverage
@@ -123,23 +127,19 @@ jobs:
             rm -f .env.*
             cat .env
           fi  
-
       - name: Run shrinkwrap build
         run: |
           faas-cli build -f ./${{ env.SERVICE_NAME }}.yml \
           --build-arg NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }} --shrinkwrap
-
-      - name: Login to OpenFaaS Gateway
-        run: |
-          faas-cli login -p ${{ secrets.OPENFAAS_GATEWAY_STAGING_PASSWD }} \
-          -g ${{ secrets.OPENFAAS_GATEWAY_STAGING }}
-
-      - name: Login to DockerHub
-        if: success()
-        uses: docker/login-action@v3
+      
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          role-to-assume: ${{ env.AWS_SSM_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -150,12 +150,33 @@ jobs:
           context: caller_repository/build/${{ env.SERVICE_NAME }}/
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
-          tags: celled/${{ env.SERVICE_NAME }}:latest-${{ steps.define_env.outputs.GITHUB_SHA_SHORT }}
-          build-args: |
-            NPM_AUTH_TOKEN=${{ secrets.NPM_CI_CD_ACCESS_TOKEN }}
+          tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
+          secret-files: |
+            npmrc=caller_repository/.npmrc
+          platforms: linux/amd64
+          no-cache: true
 
-      - name: Deploy the function
+      - name: AWS SSM Send-Command
+        uses: forgedconcepts/aws-ssm-send-command-action@main
+        id: ssm
+        with:
+          aws-region: us-east-1
+          targets: |
+            [{
+              "Key": "resource-groups:Name",
+              "Values": ["${{ env.AWS_RESOURCE_GROUP_NAME }}"]
+            },
+            {
+              "Key": "resource-groups:ResourceTypeFilters",
+              "Values": ["AWS::EC2::Instance"]
+            }]
+          document-name: AWS-RunShellScript
+          parameters: |
+            {"commands":["runuser -l ubuntu -c 'cd /home/ubuntu/microservices && /bin/bash /home/ubuntu/microservices/deploy-service.sh  ${{ env.SERVICE_TAG }} | tee /home/ubuntu/microservices/deploy-${{ github.run_id }}.log' "],"workingDirectory":["/home/ubuntu/microservices"],"executionTimeout":["3600"]}
+      
+      - name: Output
         run: |
-          faas-cli deploy -f ./${{ env.SERVICE_NAME }}.yml --tag sha --gateway ${{ secrets.OPENFAAS_GATEWAY_STAGING }}
-        env:
-          DOCKER_USER: celled
+          echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          printf "%b\n" "${{ steps.ssm.outputs.output }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

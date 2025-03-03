@@ -1,4 +1,9 @@
-name: Micro-service deploy to Production
+# This workflow builds and deploys Cell-Ed's microservices that conform to the following:
+#  * use the Node-Auth template
+#  * are not designed to run in parallel
+
+
+name: Single-Node MS deploy to Staging
 
 on:
   workflow_call:
@@ -7,12 +12,10 @@ on:
         required: true
       NPM_CI_CD_ACCESS_TOKEN:
         required: true
-      SHIELDS_GH_TOKEN:
-        required: true
 env:
-  APP_ENV: prod
+  APP_ENV: stg
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  AWS_RESOURCE_GROUP_NAME: microservices-production-rg-v1
+  AWS_RESOURCE_GROUP_NAME: workers-staging-rg-v1
   AWS_REGION: us-east-1
   AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
@@ -27,10 +30,6 @@ jobs:
         working-directory: caller_repository
     env:
       S3_BADGES_BUCKET_REGION: us-east-1
-      SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
-      SHIELDS_HOST_PORT: 15080
-      SHIELDS_CONTAINER_PORT: 8080
-      SHIELDS_SERVER_URL: http://localhost:15080
     steps:
       - name: Checkout Caller Repository
         uses: actions/checkout@v4
@@ -63,70 +62,19 @@ jobs:
           echo "GITHUB_SHA_SHORT=$GITHUB_SHA_SHORT" >> $GITHUB_ENV
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]' | tr '.' '-')
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
-          echo "SERVICE_TAG=$SERVICE_NAME:${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          echo "SERVICE_TAG=$SERVICE_NAME:$GITHUB_SHA_SHORT" >> $GITHUB_ENV
 
       - name: Get faas-cli
         run: curl -sLSf https://cli.openfaas.com | sudo sh
 
-      - name: Start MongoDB
-        uses: supercharge/mongodb-github-action@1.11.0
-        with:
-          mongodb-version: 7.0.14
-          mongodb-replica-set: rs0
-
-      - name: Install mongoTools
-        run: |
-          wget -qO - https://www.mongodb.org/static/pgp/server-5.0.asc | sudo apt-key add -
-          echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/5.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-5.0.list
-          sudo apt-get update
-          sudo apt-get install -y mongodb-database-tools
-
       - name: Setup npmrc
-        run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > .npmrc
+        run: echo "//registry.npmjs.org/:_authToken=${{secrets.NPM_CI_CD_ACCESS_TOKEN}}" > ./src/.npmrc
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Run Unit Tests
-        run: npm test ./ -- --coverage
-
-      - name: Start shields.io Server
         run: |
-          docker run -d -p ${{ env.SHIELDS_HOST_PORT }}:${{ env.SHIELDS_CONTAINER_PORT }} --env PORT=${{ env.SHIELDS_CONTAINER_PORT }} --name shields ${{ env.SHIELDS_IMAGE_URL }}
-          until curl -s ${{ env.SHIELDS_SERVER_URL }} > /dev/null; do
-            echo "Waiting for Shields.io container to be ready..."
-            sleep 1
-          done
-          echo "Shields.io container is ready!"
+          cd src
+          npm ci
 
-      - name: Create Coverage Badge
-        uses: ./workflows_repository/.github/createCoverageBadge
-        with:
-          COVERAGE_REPORT_PATH: "caller_repository/coverage/coverage-summary.json"
-          LABEL: "Production:"
-          BADGE_GENERATOR_SERVER_URL: ${{ env.SHIELDS_SERVER_URL }}
-
-      - name: Deploy Coverage Badge
-        uses: reggionick/s3-deploy@v4
-        with:
-          folder: workflows_repository/.github/createCoverageBadge/dist/badge
-          bucket: micro-services-docs/github-badges/prod/${{ env.SERVICE_NAME }}
-          bucket-region: ${{ env.S3_BADGES_BUCKET_REGION }}
-          "no-cache": true
-
-      - name: Clean Coverage Badge Cache
-        uses: ./workflows_repository/.github/cleanGithubImagesCache
-        with:
-          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
-          REPO_NAME: ${{ github.repository }}
-
-      - name: Create .env File if Exists
-        run: |
-          if [ -f ".env.$APP_ENV" ]; then
-            mv -f ".env.$APP_ENV" .env
-            rm -f .env.*
-            cat .env
-          fi  
       - name: Run shrinkwrap build
         run: |
           faas-cli build -f ./${{ env.SERVICE_NAME }}.yml \
@@ -152,7 +100,7 @@ jobs:
           push: true
           tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
           secret-files: |
-            npmrc=caller_repository/.npmrc
+            npmrc=caller_repository/src/.npmrc
           platforms: linux/amd64
           no-cache: true
 
@@ -173,7 +121,7 @@ jobs:
           document-name: AWS-RunShellScript
           parameters: |
             {"commands":["runuser -l ubuntu -c 'cd /home/ubuntu/microservices && /bin/bash /home/ubuntu/microservices/deploy-service.sh  ${{ env.SERVICE_TAG }} | tee /home/ubuntu/microservices/deploy-${{ github.run_id }}.log' "],"workingDirectory":["/home/ubuntu/microservices"],"executionTimeout":["3600"]}
-      
+
       - name: Output
         run: |
           echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY

@@ -12,7 +12,7 @@ on:
 env:
   APP_ENV: dev
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  AWS_RESOURCE_GROUP_NAME: Microservices-Dev-ResourceGroup
+  AWS_RESOURCE_GROUP_NAME: microservices-dev-rg-v1
   AWS_REGION: us-east-1
   AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
 
@@ -63,7 +63,7 @@ jobs:
           echo "GITHUB_SHA_SHORT=$GITHUB_SHA_SHORT" >> $GITHUB_ENV
           SERVICE_NAME=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]' | tr '.' '-')
           echo "SERVICE_NAME=$SERVICE_NAME" >> $GITHUB_ENV
-          echo "SERVICE_TAG=$SERVICE_NAME:latest-$GITHUB_SHA_SHORT" >> $GITHUB_ENV
+          echo "SERVICE_TAG=$SERVICE_NAME:$GITHUB_SHA_SHORT" >> $GITHUB_ENV
 
       - name: Get faas-cli
         run: curl -sLSf https://cli.openfaas.com | sudo sh
