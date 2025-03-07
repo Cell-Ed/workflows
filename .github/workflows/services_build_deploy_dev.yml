@@ -150,7 +150,7 @@ jobs:
           context: caller_repository/build/${{ env.SERVICE_NAME }}/
           file: caller_repository/build/${{ env.SERVICE_NAME }}/Dockerfile
           push: true
-          tags: ${{ env.ECR_REPOSITORY }}/celled/${{ env.SERVICE_TAG }}
+          tags: ${{ env.ECR_REPOSITORY }}/celled/dev-${{ env.SERVICE_TAG }}
           secret-files: |
             npmrc=caller_repository/.npmrc
           platforms: linux/amd64
