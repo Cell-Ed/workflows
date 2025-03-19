@@ -140,6 +140,11 @@ jobs:
       
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names "celled/${{ env.SERVICE_NAME }}" || \
+          aws ecr create-repository --repository-name "celled/${{ env.SERVICE_NAME }}" 
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
