@@ -10,10 +10,10 @@ jobs:
       run:
         working-directory: caller_repository
     env:
-      REACT_APP_API_ENDPOINT: ${{secrets.DEV_API_ENDPOINT}}
-      URL_LMS_API: https://dev-portal.cell-ed.com
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      REACT_APP_API_ENDPOINT: ${{secrets.BT_DEV_API_ENDPOINT}}
+      URL_LMS_API: https://portal.dev.cell-ed.cloud
+      AWS_ACCESS_KEY_ID: ${{ secrets.BT_DEV_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BT_DEV_AWS_SECRET_ACCESS_KEY }}
       S3_BUCKET_REGION: us-east-1
       SHIELDS_IMAGE_URL: ghcr.io/badges/shields:next
       SHIELDS_HOST_PORT: 15080
@@ -37,7 +37,7 @@ jobs:
       - name: Process Repository Name
         uses: ./workflows_repository/.github/processRepoName
         with:
-          S3_BUCKET: celled-lms-dev
+          S3_BUCKET: celled-lms-devbt
           REPO_NAME: ${{ github.event.repository.name }}
 
       - name: Check envs created.
