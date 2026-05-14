@@ -11,10 +11,10 @@ on:
         required: true
 env:
   APP_ENV: dev
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  ECR_REPOSITORY: ${{ vars.BT_ECR_REPOSITORY }}
   AWS_RESOURCE_GROUP_NAME: microservices-dev-rg-v1
   AWS_REGION: us-east-1
-  AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::921614945575:role/github-actions-role
+  AWS_SSM_ROLE_TO_ASSUME: arn:aws:iam::356212053272:role/bt-github-actions-dev-role
 
 jobs:
   func-build:
