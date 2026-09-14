@@ -7,6 +7,16 @@ name: (legacy) Micro-service deploy to Staging
 
 on:
   workflow_call:
+    inputs:
+      # Which ref of the OpenFaaS templates repo to build against. Defaults to
+      # main, so every existing caller behaves exactly as before. A service can
+      # pass a branch to try a template change on staging without merging it to
+      # main, which every environment -- production included -- builds from.
+      template_ref:
+        description: 'Ref of Cell-Ed/openfaas-templates to build with'
+        required: false
+        type: string
+        default: 'main'
     secrets:
       ACTIONS_CI_CD_ACCESS_TOKEN:
         required: true
@@ -48,7 +58,7 @@ jobs:
           repository: Cell-Ed/openfaas-templates
           path: repo-templates
           token: ${{ secrets.ACTIONS_CI_CD_ACCESS_TOKEN }}
-          ref: main
+          ref: ${{ inputs.template_ref }}
 
       - run: |
           ls -a
