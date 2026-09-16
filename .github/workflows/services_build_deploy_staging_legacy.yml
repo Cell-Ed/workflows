@@ -8,15 +8,15 @@ name: (legacy) Micro-service deploy to Staging
 on:
   workflow_call:
     inputs:
-      # Which ref of the OpenFaaS templates repo to build against. Defaults to
-      # main, so every existing caller behaves exactly as before. A service can
-      # pass a branch to try a template change on staging without merging it to
-      # main, which every environment -- production included -- builds from.
+      # Which ref of the OpenFaaS templates repo to build against. Staging builds
+      # use the templates' staging branch, so a template change is proven on
+      # staging before it is merged to main, which production builds from. A
+      # service can pass another branch to try an unmerged template change.
       template_ref:
         description: 'Ref of Cell-Ed/openfaas-templates to build with'
         required: false
         type: string
-        default: 'main'
+        default: 'staging'
     secrets:
       ACTIONS_CI_CD_ACCESS_TOKEN:
         required: true
@@ -51,6 +51,8 @@ jobs:
         with:
           repository: Cell-Ed/workflows
           path: workflows_repository
+          # staging builds use the staging branch of the shared actions; production uses main
+          ref: staging
 
       - name: Checkout Templates Repository
         uses: actions/checkout@v4
