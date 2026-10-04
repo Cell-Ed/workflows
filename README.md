@@ -33,6 +33,11 @@ Depending your trigger conditions in your repository, calling a distributed work
 			secrets: inherit
 The important section is **jobs**, notice that the url ends with **@main** this mean we'll be using this workflow from the branch main.  
 This will allow us to work on new workflows or maintain existing ones using other branches and keep main safe.
+### Claude Code workflows
+ - **claude_code_review.yml** reviews every non-draft pull request and keeps one outcome comment on it up to date.
+ - **claude_code_mention.yml** answers `@claude` in issues, PR comments and PR reviews.
+
+Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App. The caller must grant the permissions the job uses, because a called workflow cannot hold more than its caller; the header of each file has the caller to copy.
 # Technical Limitations
 For distributed workflows to work, this repository needs to be public: [reusable-workflows-docs](https://docs.github.com/en/actions/using-workflows/reusing-workflows#limitations)
 Because of this, please avoid to include any sensitive data in here.
