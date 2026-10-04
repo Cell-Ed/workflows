@@ -1,13 +1,18 @@
 # Reviews a pull request with Claude Code's code-review plugin, then posts one
 # outcome comment on the PR and updates it in place on every later push.
 #
+# PRs into a branch listed in request_only_branches (default: staging) are
+# reviewed only on request: add the claude-review label, and every later push
+# is reviewed while the label stays on. PRs into any other branch, such as the
+# staging -> main release PRs, are always reviewed.
+#
 # Call it from the repository being reviewed, in
 # .github/workflows/claude-code-review.yml:
 #
 #   name: Claude Code Review
 #   on:
 #     pull_request:
-#       types: [opened, synchronize, ready_for_review, reopened]
+#       types: [opened, synchronize, ready_for_review, reopened, labeled]
 #   jobs:
 #     claude-review:
 #       permissions:
@@ -25,6 +30,12 @@ name: (claude) Code review on pull requests
 
 on:
   workflow_call:
+    inputs:
+      request_only_branches:
+        description: 'JSON array of base branches whose PRs are reviewed only with the claude-review label'
+        required: false
+        type: string
+        default: '["staging"]'
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -32,12 +43,19 @@ on:
 jobs:
   claude-review:
     # Drafts wait for ready_for_review. Fork and Dependabot PRs get no secrets,
-    # so the review could only fail there.
+    # so the review could only fail there. Adding any other label does nothing.
     if: |
       github.event_name == 'pull_request' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]'
+      github.actor != 'dependabot[bot]' &&
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+        (github.event.action != 'labeled' && (
+          contains(github.event.pull_request.labels.*.name, 'claude-review') ||
+          !contains(fromJSON(inputs.request_only_branches), github.event.pull_request.base.ref)
+        ))
+      )
     runs-on: ubuntu-latest
     # A new push supersedes the review of the previous one.
     concurrency:
@@ -94,8 +112,11 @@ jobs:
 
           SUMMARY=""
           if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
-            SUMMARY=$(jq -r '
-              [.[] | select(.type == "assistant")] | last
+            # The action writes one JSON array of messages; -s plus the flatten
+            # also accepts newline-delimited messages if that ever changes.
+            SUMMARY=$(jq -rs '
+              (if length == 1 and (.[0] | type) == "array" then .[0] else . end)
+              | [.[] | select(.type == "assistant")] | last
               | .message.content // []
               | map(select(.type == "text") | .text)
               | join("\n\n")
