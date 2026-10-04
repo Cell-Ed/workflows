@@ -1,0 +1,160 @@
+# Reviews a pull request with Claude Code's code-review plugin, then posts one
+# outcome comment on the PR and updates it in place on every later push.
+#
+# PRs into a branch listed in request_only_branches (default: staging) are
+# reviewed only on request: add the claude-review label, and every later push
+# is reviewed while the label stays on. PRs into any other branch, such as the
+# staging -> main release PRs, are always reviewed.
+#
+# Call it from the repository being reviewed, in
+# .github/workflows/claude-code-review.yml:
+#
+#   name: Claude Code Review
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, ready_for_review, reopened, labeled]
+#   jobs:
+#     claude-review:
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#         issues: write
+#         id-token: write
+#       uses: Cell-Ed/workflows/.github/workflows/claude_code_review.yml@main
+#       secrets: inherit
+#
+# A called workflow cannot hold more permissions than its caller grants, so the
+# caller's permissions block is required.
+
+name: (claude) Code review on pull requests
+
+on:
+  workflow_call:
+    inputs:
+      request_only_branches:
+        description: 'JSON array of base branches whose PRs are reviewed only with the claude-review label'
+        required: false
+        type: string
+        default: '["staging"]'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+jobs:
+  claude-review:
+    # Drafts wait for ready_for_review. Fork and Dependabot PRs get no secrets,
+    # so the review could only fail there. Adding any other label does nothing.
+    if: |
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]' &&
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+        (github.event.action != 'labeled' && (
+          contains(github.event.pull_request.labels.*.name, 'claude-review') ||
+          !contains(fromJSON(inputs.request_only_branches), github.event.pull_request.base.ref)
+        ))
+      )
+    runs-on: ubuntu-latest
+    # A new push supersedes the review of the previous one.
+    concurrency:
+      group: claude-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write # required to post the outcome comment on the PR
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # continue-on-error so the outcome comment below always gets posted;
+      # the last step re-fails the job if the review itself failed.
+      - name: Run Claude Code Review
+        id: claude-review
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: |
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            When the review is complete, end your final message with a markdown
+            outcome summary: a checklist of dimensions reviewed (correctness,
+            security, tests, conventions), findings counted by severity, and a
+            one-line verdict such as "✅ no blocking issues" or "❌ N issues to fix".
+
+      # Deterministic outcome comment: does not depend on Claude choosing to
+      # comment. Extracts Claude's final message from the execution log and
+      # posts it with the job status. Runs on success and failure.
+      - name: Post outcome comment on PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+          REVIEW_OUTCOME: ${{ steps.claude-review.outcome }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          # GITHUB_SHA on a pull_request event is the test merge commit, not the PR head.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Identifies this workflow's comment, so other github-actions comments are never overwritten.
+          MARKER='<!-- claude-code-review-outcome -->'
+          BODY_FILE="$RUNNER_TEMP/outcome-comment.md"
+
+          SUMMARY=""
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            # The action writes one JSON array of messages; -s plus the flatten
+            # also accepts newline-delimited messages if that ever changes.
+            SUMMARY=$(jq -rs '
+              (if length == 1 and (.[0] | type) == "array" then .[0] else . end)
+              | [.[] | select(.type == "assistant")] | last
+              | .message.content // []
+              | map(select(.type == "text") | .text)
+              | join("\n\n")
+            ' "$EXECUTION_FILE" 2>/dev/null || true)
+          fi
+
+          if [ "$REVIEW_OUTCOME" = "success" ]; then
+            STATUS_LINE="✅ Review job completed."
+          else
+            STATUS_LINE="❌ Review job **failed**. See the [run log]($RUN_URL)."
+          fi
+
+          {
+            echo "$MARKER"
+            echo "## Claude Code Review: outcome"
+            echo
+            echo "$STATUS_LINE"
+            echo
+            if [ -n "$SUMMARY" ]; then
+              echo "$SUMMARY"
+            else
+              echo "_No summary was produced by the review run._"
+            fi
+            echo
+            echo "---"
+            echo "_Run: [$RUN_URL]($RUN_URL) · commit ${HEAD_SHA:0:7}_"
+          } > "$BODY_FILE"
+
+          # Update this workflow's previous outcome comment when there is one; otherwise create it.
+          COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))] | last | .id // empty" \
+            | tail -n 1)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -F body=@"$BODY_FILE" > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$BODY_FILE"
+          fi
+
+      - name: Fail the job if the review failed
+        if: steps.claude-review.outcome == 'failure'
+        run: exit 1
