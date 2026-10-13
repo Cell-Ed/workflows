@@ -37,7 +37,24 @@ This will allow us to work on new workflows or maintain existing ones using othe
  - **claude_code_review.yml** reviews non-draft pull requests and keeps one outcome comment on each up to date. PRs into `staging` are reviewed only when they carry the `claude-review` label (set `request_only_branches` to change which branches); PRs into any other branch are always reviewed. Drafts wait until they are ready for review; fork and Dependabot PRs are never reviewed, because their runs get no secrets.
  - **claude_code_mention.yml** answers `@claude` in issues, PR comments and PR reviews.
 
-Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App. The caller must grant the permissions the job uses, because a called workflow cannot hold more than its caller; the header of each file has the caller to copy.
+Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App.
+
+**Formal review (CEL-263).** When the org secrets `CLAUDE_REVIEW_APP_CLIENT_ID` and `CLAUDE_REVIEW_APP_PRIVATE_KEY` are set, `claude_code_review.yml` also submits the result as a pull request review from the **Cell-Ed Claude Review** GitHub App, on the reviewed head commit:
+
+- **Approve** when Claude ends with `VERDICT: APPROVE`.
+- **Request changes** when it ends with `VERDICT: REQUEST_CHANGES`, which it does for correctness, security or privacy problems, missing tests for changed behaviour, or anything else that must be fixed before merging.
+- **Nothing** when the run fails, there's no verdict, or the PR head moved on during the review. This fails closed: no approval.
+
+The app's approval counts toward the branch rule's required approvals. Turn on "dismiss stale approvals when new commits are pushed", so an approval only ever covers the commit that was reviewed. Without the two secrets, only the outcome comment is posted.
+
+**Setting up the app** (org admin, once):
+1. Organization settings → Developer settings → GitHub Apps → New GitHub App, named "Cell-Ed Claude Review".
+2. Set any homepage URL and turn the webhook off.
+3. Repository permissions: Pull requests **Read and write**, Contents **Read**, Metadata **Read**. Install it on **this organization only**.
+4. Create a private key, then install the app on the repositories that use the review.
+5. Add org Actions secrets `CLAUDE_REVIEW_APP_CLIENT_ID` (the app's Client ID) and `CLAUDE_REVIEW_APP_PRIVATE_KEY` (the whole `.pem`), available to those repositories.
+
+The review runs on `pull_request` from the same repository, so someone with write access could change a repo's caller workflow in their own PR. Protect `.github/` with CODEOWNERS or a ruleset once more people have write access. The caller must grant the permissions the job uses, because a called workflow cannot hold more than its caller; the header of each file has the caller to copy.
 # Technical Limitations
 For distributed workflows to work, this repository needs to be public: [reusable-workflows-docs](https://docs.github.com/en/actions/using-workflows/reusing-workflows#limitations)
 Because of this, please avoid to include any sensitive data in here.
