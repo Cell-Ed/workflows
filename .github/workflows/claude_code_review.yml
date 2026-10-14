@@ -188,6 +188,11 @@ jobs:
               echo "_No formal review submitted: the run produced no verdict, so nothing is approved._"
             elif [ "$CLAUDE_REVIEW_APP_CONFIGURED" != "true" ]; then
               echo "_No formal review submitted: the Claude Review app isn't configured for this repository._"
+            else
+              # Replaced by the last step with what actually happened, so the comment never
+              # shows a verdict that the formal review didn't carry out.
+              echo "<!-- formal-review-status -->"
+              echo "_Formal review: submitting **$VERDICT**…_"
             fi
             echo
             echo "---"
@@ -201,8 +206,9 @@ jobs:
           if [ -n "$COMMENT_ID" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -F body=@"$BODY_FILE" > /dev/null
           else
-            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$BODY_FILE"
+            COMMENT_ID=$(gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" -F body=@"$BODY_FILE" --jq .id)
           fi
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
 
           # Published last, so a failure anywhere above leaves no verdict to act on.
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
@@ -223,6 +229,7 @@ jobs:
       # An approval counts toward the branch rule's required approvals; with
       # "dismiss stale approvals" on, the next push clears it until the next review.
       - name: Submit the formal review
+        id: submit
         if: always() && steps.app-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -236,6 +243,7 @@ jobs:
           CURRENT_HEAD=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
           if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
             echo "The PR head moved from $HEAD_SHA to $CURRENT_HEAD during the review; no formal review submitted."
+            echo "result=moved" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "$VERDICT" = "APPROVE" ]; then
@@ -246,6 +254,37 @@ jobs:
           gh api -X POST "repos/$REPO/pulls/$PR_NUMBER/reviews" \
             -f commit_id="$HEAD_SHA" -f event="$VERDICT" -f body="$BODY" > /dev/null
           echo "Submitted $VERDICT on ${HEAD_SHA:0:7}."
+          echo "result=submitted" >> "$GITHUB_OUTPUT"
+
+      # The outcome comment is posted before the formal review, so it said "submitting". Replace
+      # that with what happened, including a failure, so it can't contradict the check.
+      - name: Show the formal review result in the outcome comment
+        if: always() && steps.outcome.outputs.comment_id != '' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMENT_ID: ${{ steps.outcome.outputs.comment_id }}
+          VERDICT: ${{ steps.outcome.outputs.verdict }}
+          TOKEN_OUTCOME: ${{ steps.app-token.outcome }}
+          SUBMIT_OUTCOME: ${{ steps.submit.outcome }}
+          SUBMIT_RESULT: ${{ steps.submit.outputs.result }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$SUBMIT_RESULT" = "submitted" ] && [ "$VERDICT" = "APPROVE" ]; then
+            LINE="✅ **Formal review: approved** by cell-ed-claude-review on ${HEAD_SHA:0:7}."
+          elif [ "$SUBMIT_RESULT" = "submitted" ]; then
+            LINE="❌ **Formal review: changes requested** by cell-ed-claude-review on ${HEAD_SHA:0:7}."
+          elif [ "$SUBMIT_RESULT" = "moved" ]; then
+            LINE="_No formal review submitted: the PR moved on during the review, and the newer commit gets its own review._"
+          else
+            LINE="⚠️ **Formal review failed** (app token: ${TOKEN_OUTCOME:-not run}, submit: ${SUBMIT_OUTCOME:-not run}), so nothing was approved. See the [run log]($RUN_URL)."
+          fi
+          BODY_FILE="$RUNNER_TEMP/outcome-comment-final.md"
+          gh api "repos/$REPO/issues/comments/$COMMENT_ID" --jq .body \
+            | awk -v line="$LINE" 'replace { print line; replace = 0; next } /^<!-- formal-review-status -->$/ { replace = 1 } { print }' \
+            > "$BODY_FILE"
+          gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -F body=@"$BODY_FILE" > /dev/null
 
       - name: Fail the job if the review failed
         if: steps.claude-review.outcome == 'failure'
