@@ -1,0 +1,16 @@
+# Claude Code review (Cell-Ed/workflows claude_code_review.yml). PRs into main are always
+# reviewed; PRs into staging only with the claude-review label. With the Cell-Ed Claude Review
+# app configured, the result is also submitted as an Approve or Request changes review (CEL-263).
+name: Claude Code Review
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened, labeled]
+jobs:
+  claude-review:
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    uses: Cell-Ed/workflows/.github/workflows/claude_code_review.yml@main
+    secrets: inherit
