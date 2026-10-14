@@ -63,7 +63,7 @@ jobs:
       github.event_name == 'pull_request' &&
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
       (
         (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
         (github.event.action != 'labeled' && (
@@ -159,7 +159,14 @@ jobs:
           VERDICT=$(printf '%s\n' "$SUMMARY" | grep -oE '^`?VERDICT: (APPROVE|REQUEST_CHANGES)`?[[:space:]]*$' \
             | tail -n 1 | grep -oE 'APPROVE|REQUEST_CHANGES' || true)
           if [ "$REVIEW_OUTCOME" != "success" ]; then VERDICT=""; fi
-          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          # A newer push gets its own review, so never approve or reject a commit that is no
+          # longer the PR head. Checked here so the outcome comment can say so.
+          HEAD_MOVED=""
+          CURRENT_HEAD=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha || true)
+          if [ -n "$VERDICT" ] && [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
+            HEAD_MOVED="${CURRENT_HEAD:-unknown}"
+            VERDICT=""
+          fi
 
           {
             echo "$MARKER"
@@ -173,7 +180,11 @@ jobs:
               echo "_No summary was produced by the review run._"
             fi
             echo
-            if [ -z "$VERDICT" ]; then
+            if [ "$HEAD_MOVED" = "unknown" ]; then
+              echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved._"
+            elif [ -n "$HEAD_MOVED" ]; then
+              echo "_No formal review submitted: the PR moved to ${HEAD_MOVED:0:7} during the review, which gets its own review._"
+            elif [ -z "$VERDICT" ]; then
               echo "_No formal review submitted: the run produced no verdict, so nothing is approved._"
             elif [ "$CLAUDE_REVIEW_APP_CONFIGURED" != "true" ]; then
               echo "_No formal review submitted: the Claude Review app isn't configured for this repository._"
@@ -193,12 +204,15 @@ jobs:
             gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$BODY_FILE"
           fi
 
+          # Published last, so a failure anywhere above leaves no verdict to act on.
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+
       # Mints a token for the Cell-Ed Claude Review app, scoped to this repository
       # and to pull requests only. Pinned to v3.2.0 (third-party actions are pinned
       # to a commit SHA).
       - name: Get a Claude Review app token
         id: app-token
-        if: always() && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
+        if: always() && steps.outcome.outcome == 'success' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.CLAUDE_REVIEW_APP_CLIENT_ID }}
