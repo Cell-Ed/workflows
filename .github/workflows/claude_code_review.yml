@@ -1,0 +1,252 @@
+# Reviews a pull request with Claude Code's code-review plugin, then posts one
+# outcome comment on the PR and updates it in place on every later push.
+#
+# When the Cell-Ed Claude Review GitHub App is configured (org secrets
+# CLAUDE_REVIEW_APP_CLIENT_ID and CLAUDE_REVIEW_APP_PRIVATE_KEY), the review is
+# also submitted as a formal pull request review by that app, on the head commit:
+# Approve when Claude finds nothing that must be fixed before merging, Request
+# changes when it does. An approval from the app counts toward the branch rule's
+# required approvals (CEL-263). It fails closed: a failed run, a missing verdict,
+# or a head commit that moved on during the review submits no approval. Without
+# the app secrets, only the outcome comment is posted.
+#
+# PRs into a branch listed in request_only_branches (default: staging) are
+# reviewed only on request: add the claude-review label, and every later push
+# is reviewed while the label stays on. PRs into any other branch, such as the
+# staging -> main release PRs, are always reviewed.
+#
+# Call it from the repository being reviewed, in
+# .github/workflows/claude-code-review.yml:
+#
+#   name: Claude Code Review
+#   on:
+#     pull_request:
+#       types: [opened, synchronize, ready_for_review, reopened, labeled]
+#   jobs:
+#     claude-review:
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#         issues: write
+#         id-token: write
+#       uses: Cell-Ed/workflows/.github/workflows/claude_code_review.yml@main
+#       secrets: inherit
+#
+# A called workflow cannot hold more permissions than its caller grants, so the
+# caller's permissions block is required.
+
+name: (claude) Code review on pull requests
+
+on:
+  workflow_call:
+    inputs:
+      request_only_branches:
+        description: 'JSON array of base branches whose PRs are reviewed only with the claude-review label'
+        required: false
+        type: string
+        default: '["staging"]'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      # The Cell-Ed Claude Review GitHub App: Pull requests read and write,
+      # Contents read. Optional; without them no formal review is submitted.
+      CLAUDE_REVIEW_APP_CLIENT_ID:
+        required: false
+      CLAUDE_REVIEW_APP_PRIVATE_KEY:
+        required: false
+
+jobs:
+  claude-review:
+    # Drafts wait for ready_for_review. Fork and Dependabot PRs get no secrets,
+    # so the review could only fail there. Adding any other label does nothing.
+    if: |
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
+        (github.event.action != 'labeled' && (
+          contains(github.event.pull_request.labels.*.name, 'claude-review') ||
+          !contains(fromJSON(inputs.request_only_branches), github.event.pull_request.base.ref)
+        ))
+      )
+    runs-on: ubuntu-latest
+    # A new push supersedes the review of the previous one.
+    concurrency:
+      group: claude-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write # required to post the outcome comment on the PR
+      issues: write
+      id-token: write
+    env:
+      # Secrets can't be read in step conditions, so this records whether the app is set up.
+      CLAUDE_REVIEW_APP_CONFIGURED: ${{ secrets.CLAUDE_REVIEW_APP_CLIENT_ID != '' && secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY != '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # continue-on-error so the outcome comment below always gets posted;
+      # the last step re-fails the job if the review itself failed.
+      - name: Run Claude Code Review
+        id: claude-review
+        continue-on-error: true
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: |
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            When the review is complete, end your final message with a markdown
+            outcome summary: a checklist of dimensions reviewed (correctness,
+            security, tests, conventions), findings counted by severity, and a
+            one-line verdict such as "✅ no blocking issues" or "❌ N issues to fix".
+
+            Then end with exactly one machine-readable line, alone on the last line:
+            `VERDICT: REQUEST_CHANGES` if any finding is a correctness bug, a
+            security or privacy problem, missing tests for changed behaviour, or
+            anything else that must be fixed before merging; otherwise
+            `VERDICT: APPROVE`. Minor suggestions alone do not block approval.
+
+      # Deterministic outcome comment: does not depend on Claude choosing to
+      # comment. Extracts Claude's final message from the execution log and
+      # posts it with the job status. Runs on success and failure.
+      - name: Post outcome comment on PR
+        id: outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+          REVIEW_OUTCOME: ${{ steps.claude-review.outcome }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          # GITHUB_SHA on a pull_request event is the test merge commit, not the PR head.
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Identifies this workflow's comment, so other github-actions comments are never overwritten.
+          MARKER='<!-- claude-code-review-outcome -->'
+          BODY_FILE="$RUNNER_TEMP/outcome-comment.md"
+
+          SUMMARY=""
+          if [ -n "$EXECUTION_FILE" ] && [ -f "$EXECUTION_FILE" ]; then
+            # The action writes one JSON array of messages; -s plus the flatten
+            # also accepts newline-delimited messages if that ever changes.
+            SUMMARY=$(jq -rs '
+              (if length == 1 and (.[0] | type) == "array" then .[0] else . end)
+              | [.[] | select(.type == "assistant")] | last
+              | .message.content // []
+              | map(select(.type == "text") | .text)
+              | join("\n\n")
+            ' "$EXECUTION_FILE" 2>/dev/null || true)
+          fi
+
+          if [ "$REVIEW_OUTCOME" = "success" ]; then
+            STATUS_LINE="✅ Review job completed."
+          else
+            STATUS_LINE="❌ Review job **failed**. See the [run log]($RUN_URL)."
+          fi
+
+          # The last VERDICT line decides the formal review. Anything else (no line,
+          # an unexpected value, a failed run) means no approval: fail closed.
+          VERDICT=$(printf '%s\n' "$SUMMARY" | grep -oE '^`?VERDICT: (APPROVE|REQUEST_CHANGES)`?[[:space:]]*$' \
+            | tail -n 1 | grep -oE 'APPROVE|REQUEST_CHANGES' || true)
+          if [ "$REVIEW_OUTCOME" != "success" ]; then VERDICT=""; fi
+          # A newer push gets its own review, so never approve or reject a commit that is no
+          # longer the PR head. Checked here so the outcome comment can say so.
+          HEAD_MOVED=""
+          CURRENT_HEAD=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha || true)
+          if [ -n "$VERDICT" ] && [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
+            HEAD_MOVED="${CURRENT_HEAD:-unknown}"
+            VERDICT=""
+          fi
+
+          {
+            echo "$MARKER"
+            echo "## Claude Code Review: outcome"
+            echo
+            echo "$STATUS_LINE"
+            echo
+            if [ -n "$SUMMARY" ]; then
+              echo "$SUMMARY"
+            else
+              echo "_No summary was produced by the review run._"
+            fi
+            echo
+            if [ "$HEAD_MOVED" = "unknown" ]; then
+              echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved._"
+            elif [ -n "$HEAD_MOVED" ]; then
+              echo "_No formal review submitted: the PR moved to ${HEAD_MOVED:0:7} during the review, which gets its own review._"
+            elif [ -z "$VERDICT" ]; then
+              echo "_No formal review submitted: the run produced no verdict, so nothing is approved._"
+            elif [ "$CLAUDE_REVIEW_APP_CONFIGURED" != "true" ]; then
+              echo "_No formal review submitted: the Claude Review app isn't configured for this repository._"
+            fi
+            echo
+            echo "---"
+            echo "_Run: [$RUN_URL]($RUN_URL) · commit ${HEAD_SHA:0:7}_"
+          } > "$BODY_FILE"
+
+          # Update this workflow's previous outcome comment when there is one; otherwise create it.
+          COMMENT_ID=$(gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))] | last | .id // empty" \
+            | tail -n 1)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -F body=@"$BODY_FILE" > /dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPO" --body-file "$BODY_FILE"
+          fi
+
+          # Published last, so a failure anywhere above leaves no verdict to act on.
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+
+      # Mints a token for the Cell-Ed Claude Review app, scoped to this repository
+      # and to pull requests only. Pinned to v3.2.0 (third-party actions are pinned
+      # to a commit SHA).
+      - name: Get a Claude Review app token
+        id: app-token
+        if: always() && steps.outcome.outcome == 'success' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.CLAUDE_REVIEW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+
+      # Submits Approve or Request changes as the app, on the commit that was reviewed.
+      # An approval counts toward the branch rule's required approvals; with
+      # "dismiss stale approvals" on, the next push clears it until the next review.
+      - name: Submit the formal review
+        if: always() && steps.app-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERDICT: ${{ steps.outcome.outputs.verdict }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Never approve a commit that is no longer the PR head: a newer push gets its own review.
+          CURRENT_HEAD=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
+          if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
+            echo "The PR head moved from $HEAD_SHA to $CURRENT_HEAD during the review; no formal review submitted."
+            exit 0
+          fi
+          if [ "$VERDICT" = "APPROVE" ]; then
+            BODY="Claude Code Review: no blocking issues on ${HEAD_SHA:0:7}. Details in the outcome comment ([run]($RUN_URL))."
+          else
+            BODY="Claude Code Review found issues to fix before merging on ${HEAD_SHA:0:7}. See the outcome comment ([run]($RUN_URL))."
+          fi
+          gh api -X POST "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+            -f commit_id="$HEAD_SHA" -f event="$VERDICT" -f body="$BODY" > /dev/null
+          echo "Submitted $VERDICT on ${HEAD_SHA:0:7}."
+
+      - name: Fail the job if the review failed
+        if: steps.claude-review.outcome == 'failure'
+        run: exit 1

@@ -42,6 +42,8 @@ jobs:
         with:
           repository: Cell-Ed/workflows
           path: workflows_repository
+          # staging builds use the staging branch of the shared actions; production uses main
+          ref: staging
 
       - name: Checkout Templates Repository
         uses: actions/checkout@v4
@@ -49,7 +51,8 @@ jobs:
           repository: Cell-Ed/openfaas-templates
           path: repo-templates
           token: ${{ secrets.ACTIONS_CI_CD_ACCESS_TOKEN }}
-          ref: main
+          # staging templates: a template change is proven here before it reaches main (production)
+          ref: staging
 
       - run: |
           ls -a
