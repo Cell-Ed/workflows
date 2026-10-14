@@ -48,8 +48,8 @@ on:
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
-      # The Cell-Ed Claude Review GitHub App: Pull requests read and write,
-      # Contents read. Optional; without them no formal review is submitted.
+      # The Cell-Ed Claude Review GitHub App: Pull requests read and write, Contents read and
+      # write (needed for its approval to count). Optional; without them no formal review is submitted.
       CLAUDE_REVIEW_APP_CLIENT_ID:
         required: false
       CLAUDE_REVIEW_APP_PRIVATE_KEY:

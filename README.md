@@ -55,7 +55,10 @@ The second one matters: a push can land between the review's head check and its 
 **Setting up the app** (org admin, once):
 1. Organization settings → Developer settings → GitHub Apps → New GitHub App, named "Cell-Ed Claude Review".
 2. Set any homepage URL and turn the webhook off.
-3. Repository permissions: Pull requests **Read and write**, Contents **Read**, Metadata **Read**. Install it on **this organization only**.
+3. Repository permissions: Pull requests **Read and write**, Contents **Read and write**, Metadata **Read**. Install it on **this organization only**.
+   - Contents must be **write**: GitHub only counts approvals from reviewers who can push to the repository. With Contents read, the approval is posted but shows `canPush=false` and doesn't meet the rule.
+   - The review job's token is still limited to `pull-requests: write`, so the job can't push.
+   - Keep the private key only in the org secret: anyone holding it could mint a token that pushes.
 4. Create a private key, then install the app on the repositories that use the review.
 5. Add org Actions secrets `CLAUDE_REVIEW_APP_CLIENT_ID` (the app's Client ID) and `CLAUDE_REVIEW_APP_PRIVATE_KEY` (the whole `.pem`), available to those repositories.
 
