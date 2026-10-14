@@ -45,7 +45,12 @@ Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App.
 - **Request changes** when it ends with `VERDICT: REQUEST_CHANGES`, which it does for correctness, security or privacy problems, missing tests for changed behaviour, or anything else that must be fixed before merging.
 - **Nothing** when the run fails, there's no verdict, or the PR head moved on during the review. This fails closed: no approval.
 
-The app's approval counts toward the branch rule's required approvals. Turn on "dismiss stale approvals when new commits are pushed", so an approval only ever covers the commit that was reviewed. Without the two secrets, only the outcome comment is posted.
+The app's approval counts toward the branch rule's required approvals. In the branch rule, turn on both:
+
+- "Dismiss stale pull request approvals when new commits are pushed";
+- "Require approval of the most recent reviewable push".
+
+The second one matters: a push can land between the review's head check and its approval, so the approval arrives *after* the push but names the older commit. Dismissal doesn't catch that. Requiring approval of the latest push does, so an approval of an older commit never satisfies the rule. Without the two secrets, only the outcome comment is posted.
 
 **Setting up the app** (org admin, once):
 1. Organization settings → Developer settings → GitHub Apps → New GitHub App, named "Cell-Ed Claude Review".
