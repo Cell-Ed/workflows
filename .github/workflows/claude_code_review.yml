@@ -34,6 +34,22 @@
 #
 # A called workflow cannot hold more permissions than its caller grants, so the
 # caller's permissions block is required.
+#
+# Review styles (CEL-263). Each setting comes from the input of the same name,
+# else the caller repository's variable, else the default. Callers don't need to
+# change: set the variables in a repository's settings to opt it in (a called
+# workflow sees the caller repository's variables, per GitHub's documentation).
+#   review_style    CLAUDE_REVIEW_STYLE    plugin (default): the code-review
+#                   plugin. trace: one reviewer that traces every changed entry
+#                   point end to end and re-reviews against its last review.
+#   review_model    CLAUDE_REVIEW_MODEL    model id; empty: the action's default.
+#   review_effort   CLAUDE_REVIEW_EFFORT   low | medium | high | xhigh | max.
+#   review_trial    CLAUDE_REVIEW_TRIAL    true: run both styles; the plugin
+#                   still submits the formal review, the trace review posts a
+#                   comment only and never fails the run.
+# On 14 Oct 2026 the trace style (Sonnet, high effort) blocked a change with
+# three high-severity security findings that the plugin approved; the trial is
+# to confirm that on real PRs before making trace the default.
 
 name: (claude) Code review on pull requests
 
@@ -45,6 +61,26 @@ on:
         required: false
         type: string
         default: '["staging"]'
+      review_style:
+        description: 'plugin or trace; empty: the CLAUDE_REVIEW_STYLE variable, else plugin'
+        required: false
+        type: string
+        default: ''
+      review_model:
+        description: 'Model id; empty: the CLAUDE_REVIEW_MODEL variable, else the action default'
+        required: false
+        type: string
+        default: ''
+      review_effort:
+        description: 'Effort level; empty: the CLAUDE_REVIEW_EFFORT variable, else the default'
+        required: false
+        type: string
+        default: ''
+      review_trial:
+        description: 'true runs both styles, trace as comment only; empty: the CLAUDE_REVIEW_TRIAL variable'
+        required: false
+        type: string
+        default: ''
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
         required: true
@@ -56,7 +92,8 @@ on:
         required: false
 
 jobs:
-  claude-review:
+  # Resolves the review settings once and decides which styles run.
+  settings:
     # Drafts wait for ready_for_review. Fork and Dependabot PRs get no secrets,
     # so the review could only fail there. Adding any other label does nothing.
     if: |
@@ -72,9 +109,48 @@ jobs:
         ))
       )
     runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      styles: ${{ steps.resolve.outputs.styles }}
+      formal_style: ${{ steps.resolve.outputs.formal_style }}
+      trial: ${{ steps.resolve.outputs.trial }}
+      model: ${{ steps.resolve.outputs.model }}
+      effort: ${{ steps.resolve.outputs.effort }}
+    steps:
+      - name: Resolve review settings
+        id: resolve
+        env:
+          STYLE: ${{ inputs.review_style || vars.CLAUDE_REVIEW_STYLE || 'plugin' }}
+          MODEL: ${{ inputs.review_model || vars.CLAUDE_REVIEW_MODEL || '' }}
+          EFFORT: ${{ inputs.review_effort || vars.CLAUDE_REVIEW_EFFORT || '' }}
+          TRIAL: ${{ inputs.review_trial || vars.CLAUDE_REVIEW_TRIAL || 'false' }}
+        run: |
+          # Anything unexpected falls back to today's behaviour (plugin, no trial).
+          case "$STYLE" in plugin|trace) ;; *) echo "Unknown review style '$STYLE'; using plugin."; STYLE=plugin ;; esac
+          case "$EFFORT" in ''|low|medium|high|xhigh|max) ;; *) echo "Unknown effort '$EFFORT'; using the default."; EFFORT= ;; esac
+          if ! printf '%s' "$MODEL" | grep -Eq '^[a-z0-9.-]{0,64}$'; then echo "Invalid model id; using the default."; MODEL=; fi
+          if [ "$TRIAL" = "true" ]; then
+            echo 'styles=["plugin","trace"]' >> "$GITHUB_OUTPUT"
+            echo "formal_style=plugin" >> "$GITHUB_OUTPUT"
+          else
+            echo "styles=[\"$STYLE\"]" >> "$GITHUB_OUTPUT"
+            echo "formal_style=$STYLE" >> "$GITHUB_OUTPUT"
+            TRIAL=false
+          fi
+          { echo "trial=$TRIAL"; echo "model=$MODEL"; echo "effort=$EFFORT"; } >> "$GITHUB_OUTPUT"
+
+  claude-review:
+    needs: settings
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        style: ${{ fromJSON(needs.settings.outputs.styles) }}
+    # A trial leg must never fail the run or block a merge.
+    continue-on-error: ${{ matrix.style != needs.settings.outputs.formal_style }}
     # A new push supersedes the review of the previous one.
     concurrency:
-      group: claude-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      group: claude-review-${{ github.repository }}-${{ github.event.pull_request.number }}-${{ matrix.style }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -84,12 +160,126 @@ jobs:
     env:
       # Secrets can't be read in step conditions, so this records whether the app is set up.
       CLAUDE_REVIEW_APP_CONFIGURED: ${{ secrets.CLAUDE_REVIEW_APP_CLIENT_ID != '' && secrets.CLAUDE_REVIEW_APP_PRIVATE_KEY != '' }}
+      # Only one style submits the formal review; in a trial the other only comments.
+      FORMAL: ${{ matrix.style == needs.settings.outputs.formal_style }}
+      REVIEW_STYLE: ${{ matrix.style }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          # Full history: the trace review reads git history, and finds the
+          # commit its previous review covered.
+          fetch-depth: 0
+
+      # The trace review gets everything it needs as files, so it runs with
+      # read-only tools and no GitHub access of its own.
+      - name: Prepare the trace review's inputs
+        if: matrix.style == 'trace'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          DIR=.claude-review
+          mkdir -p "$DIR"
+          # From git, not `gh pr diff`, which refuses very large pull requests. Three dots: the PR's own changes.
+          git diff --find-renames "$BASE_SHA...$HEAD_SHA" > "$DIR/diff.patch"
+          gh pr view "$PR_NUMBER" --repo "$REPO" \
+            --json title,body,baseRefName,headRefName,author,comments,reviews > "$DIR/pr.json"
+          # This style's previous outcome comment, and the commit it reviewed.
+          gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- claude-code-review-outcome:trace -->")))] | last | .body // empty' \
+            > "$DIR/previous-review.md"
+          PREVIOUS_SHA=$(grep -oE 'reviewed-sha: [0-9a-f]{40}' "$DIR/previous-review.md" | tail -n 1 | cut -d' ' -f2 || true)
+          if [ -n "$PREVIOUS_SHA" ] && git cat-file -e "$PREVIOUS_SHA^{commit}" 2>/dev/null; then
+            git diff "$PREVIOUS_SHA" "$HEAD_SHA" > "$DIR/since-previous-review.patch"
+          fi
+          git ls-files '*CLAUDE.md' 'AGENTS.md' > "$DIR/instruction-files.txt" || true
+          ls -l "$DIR"
+
+      - name: Build the review prompt
+        id: prompt
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          MODEL: ${{ needs.settings.outputs.model }}
+          EFFORT: ${{ needs.settings.outputs.effort }}
+        run: |
+          ARGS=""
+          [ -n "$MODEL" ] && ARGS="$ARGS --model $MODEL"
+          [ -n "$EFFORT" ] && ARGS="$ARGS --effort $EFFORT"
+          # shellcheck disable=SC2016 # the backticks are literal text in the prompt
+          VERDICT_RULE='Then end with exactly one machine-readable line, alone on the last line:
+          `VERDICT: REQUEST_CHANGES` if any finding is a correctness bug, a
+          security or privacy problem, missing tests for changed behaviour, or
+          anything else that must be fixed before merging; otherwise
+          `VERDICT: APPROVE`. Minor suggestions alone do not block approval.'
+          if [ "$REVIEW_STYLE" = "trace" ]; then
+            # Read-only: file tools and read-only git. No shell beyond that, no GitHub access, no writes.
+            ARGS="$ARGS --max-turns 150"
+            ARGS="$ARGS --allowedTools \"Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)\""
+            ARGS="$ARGS --disallowedTools \"Write,Edit,NotebookEdit,WebFetch,WebSearch\""
+            PROMPT="Review pull request $REPO#$PR_NUMBER as the one reviewer whose verdict decides whether it may
+          merge. Find everything that matters in this round, so the author fixes it once.
+
+          Everything about the pull request is in .claude-review/: diff.patch (the change), pr.json (title,
+          description, the conversation and earlier reviews, including the author's answers to findings),
+          previous-review.md (your last review of this pull request, if any), since-previous-review.patch
+          (what changed since that review, if it can be computed) and instruction-files.txt (the
+          repository's CLAUDE.md and AGENTS.md files: read them; they are its standards). Read any file in
+          the repository for context. You can read and use read-only git; you cannot run anything else.
+
+          How to review:
+          1. Understand the change and every entry point it adds or changes (routes, handlers, jobs,
+             webhooks, uploads, scripts, migrations, workflows).
+          2. Trace each entry point end to end, from where input arrives to the database and back out
+             through errors and responses. For every field the change writes, find every reader of it.
+          3. At each step ask: who is the caller and how is that verified; is access checked before any
+             expensive or data-revealing work; what limits apply to size, count and time before input is
+             parsed or stored; is input validated before a database sees it; what happens on the failure
+             path (exceptions, partial writes, timeouts, generic errors); what happens under concurrency
+             (duplicate requests, lost updates); is any secret, token or personal data logged or returned;
+             can any input make the code do far more work than expected (unbounded loops, regular
+             expressions that backtrack, blocking work on an event loop).
+          4. Check the change against the repository's instruction files, citing the rule.
+          5. Report modelling problems as non-blocking: two sources of truth, one rule written in several
+             places, a contract wider than the change needs.
+          6. Verify every finding against the code before reporting it: the lines, the concrete inputs and
+             the wrong result. Report only what you are more than 95% sure of. Skip formatting, naming and
+             anything a linter catches. On tests, report only a test that cannot fail or tests the wrong
+             path, and changed behaviour with no test where the instruction files require one.
+
+          If previous-review.md exists, this is a re-review: say for each earlier blocking finding whether
+          it is fixed, answered in the conversation, or still open; report new findings mainly from
+          since-previous-review.patch; don't repeat a non-blocking point the author already answered.
+
+          Blocking means a correctness bug, a security or privacy problem, a breaking change, data loss,
+          missing error handling on a real failure path, or missing tests the instruction files require.
+
+          Write your final message as the review, with no praise and no summary of the change:
+          ### Code review
+          Earlier findings: (re-reviews only) one line each: fixed | answered | open
+          Blocking: numbered, each with path:line, the failure (inputs and wrong result) and the fix
+          Non-blocking: numbered
+          Checked and dismissed: a short list
+
+          $VERDICT_RULE"
+          else
+            PROMPT="/code-review:code-review $REPO/pull/$PR_NUMBER
+
+          When the review is complete, end your final message with a markdown
+          outcome summary: a checklist of dimensions reviewed (correctness,
+          security, tests, conventions), findings counted by severity, and a
+          one-line verdict such as \"✅ no blocking issues\" or \"❌ N issues to fix\".
+
+          $VERDICT_RULE"
+          fi
+          DELIMITER="PROMPT_$(openssl rand -hex 8)"
+          { echo "text<<$DELIMITER"; printf '%s\n' "$PROMPT"; echo "$DELIMITER"; } >> "$GITHUB_OUTPUT"
+          echo "args=$ARGS" >> "$GITHUB_OUTPUT"
 
       # continue-on-error so the outcome comment below always gets posted;
       # the last step re-fails the job if the review itself failed.
@@ -99,21 +289,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
-          plugins: "code-review@claude-code-plugins"
-          prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
-
-            When the review is complete, end your final message with a markdown
-            outcome summary: a checklist of dimensions reviewed (correctness,
-            security, tests, conventions), findings counted by severity, and a
-            one-line verdict such as "✅ no blocking issues" or "❌ N issues to fix".
-
-            Then end with exactly one machine-readable line, alone on the last line:
-            `VERDICT: REQUEST_CHANGES` if any finding is a correctness bug, a
-            security or privacy problem, missing tests for changed behaviour, or
-            anything else that must be fixed before merging; otherwise
-            `VERDICT: APPROVE`. Minor suggestions alone do not block approval.
+          plugin_marketplaces: ${{ matrix.style == 'plugin' && 'https://github.com/anthropics/claude-code.git' || '' }}
+          plugins: ${{ matrix.style == 'plugin' && 'code-review@claude-code-plugins' || '' }}
+          claude_args: ${{ steps.prompt.outputs.args }}
+          prompt: ${{ steps.prompt.outputs.text }}
 
       # Deterministic outcome comment: does not depend on Claude choosing to
       # comment. Extracts Claude's final message from the execution log and
@@ -131,8 +310,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # Identifies this workflow's comment, so other github-actions comments are never overwritten.
-          MARKER='<!-- claude-code-review-outcome -->'
+          # Identifies this workflow's comment for this style, so other comments are never overwritten.
+          # The plugin keeps the original marker, so existing outcome comments go on being updated.
+          if [ "$REVIEW_STYLE" = "plugin" ]; then MARKER='<!-- claude-code-review-outcome -->'; else MARKER="<!-- claude-code-review-outcome:$REVIEW_STYLE -->"; fi
           BODY_FILE="$RUNNER_TEMP/outcome-comment.md"
 
           SUMMARY=""
@@ -156,6 +336,7 @@ jobs:
 
           # The last VERDICT line decides the formal review. Anything else (no line,
           # an unexpected value, a failed run) means no approval: fail closed.
+          # shellcheck disable=SC2016 # literal backticks in the pattern
           VERDICT=$(printf '%s\n' "$SUMMARY" | grep -oE '^`?VERDICT: (APPROVE|REQUEST_CHANGES)`?[[:space:]]*$' \
             | tail -n 1 | grep -oE 'APPROVE|REQUEST_CHANGES' || true)
           if [ "$REVIEW_OUTCOME" != "success" ]; then VERDICT=""; fi
@@ -170,7 +351,15 @@ jobs:
 
           {
             echo "$MARKER"
-            echo "## Claude Code Review: outcome"
+            # Read by the next trace review to find what changed since this one.
+            echo "<!-- reviewed-sha: $HEAD_SHA -->"
+            if [ "$FORMAL" = "true" ]; then
+              echo "## Claude Code Review: outcome"
+            else
+              echo "## Claude Code Review ($REVIEW_STYLE, trial): outcome"
+              echo
+              echo "_Trial run: this review is a comment only. It submits no formal review and never fails the checks._"
+            fi
             echo
             echo "$STATUS_LINE"
             echo
@@ -180,7 +369,9 @@ jobs:
               echo "_No summary was produced by the review run._"
             fi
             echo
-            if [ "$HEAD_MOVED" = "unknown" ]; then
+            if [ "$FORMAL" != "true" ]; then
+              echo "_Trial verdict: ${VERDICT:-none}. No formal review is submitted for a trial._"
+            elif [ "$HEAD_MOVED" = "unknown" ]; then
               echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved._"
             elif [ -n "$HEAD_MOVED" ]; then
               echo "_No formal review submitted: the PR moved to ${HEAD_MOVED:0:7} during the review, which gets its own review._"
@@ -218,7 +409,7 @@ jobs:
       # to a commit SHA).
       - name: Get a Claude Review app token
         id: app-token
-        if: always() && steps.outcome.outcome == 'success' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
+        if: always() && env.FORMAL == 'true' && steps.outcome.outcome == 'success' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ secrets.CLAUDE_REVIEW_APP_CLIENT_ID }}
@@ -259,7 +450,7 @@ jobs:
       # The outcome comment is posted before the formal review, so it said "submitting". Replace
       # that with what happened, including a failure, so it can't contradict the check.
       - name: Show the formal review result in the outcome comment
-        if: always() && steps.outcome.outputs.comment_id != '' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
+        if: always() && env.FORMAL == 'true' && steps.outcome.outputs.comment_id != '' && steps.outcome.outputs.verdict != '' && env.CLAUDE_REVIEW_APP_CONFIGURED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
