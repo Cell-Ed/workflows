@@ -39,6 +39,17 @@ This will allow us to work on new workflows or maintain existing ones using othe
 
 Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App.
 
+**Review styles (CEL-263).** `claude_code_review.yml` has two ways to review. Callers don't change: a repository opts in with **repository variables** (Settings → Secrets and variables → Actions → Variables), or a caller can pass the inputs of the same name.
+
+| Variable (input) | Values | Default |
+|---|---|---|
+| `CLAUDE_REVIEW_STYLE` (`review_style`) | `trace`: one reviewer that traces every changed entry point from input to database and back, checks access, limits, failure paths, concurrency and data exposure, and on later pushes re-reviews against its own last review and the author's answers. `plugin`: the code-review plugin | `trace` |
+| `CLAUDE_REVIEW_MODEL` (`review_model`) | a model id | `claude-sonnet-5-5` |
+| `CLAUDE_REVIEW_EFFORT` (`review_effort`) | `low`, `medium`, `high`, `xhigh`, `max` | `high` |
+| `CLAUDE_REVIEW_TRIAL` (`review_trial`) | `true`: also run the other style; the chosen style still submits the formal review, the other posts its own comment only and never fails the checks | `false` |
+
+The trace review reads the pull request from files the workflow prepares (the diff, the conversation, its previous review, what changed since, the pull request's commits and each changed file's recent history), and runs with file tools only: no shell or `git` commands, no GitHub access, no Write or Edit, and no reads of the process environment, runner temp files, hidden folders in the runner's home or git config. The checkout keeps no token, and the outcome comment redacts anything shaped like a credential and then approves nothing. Trace on Sonnet at high effort is the review standard (lead, 14 Oct 2026): it blocked a change on three high-severity security findings that the plugin approved. To fall back to the plugin for one repository, set its `CLAUDE_REVIEW_STYLE` variable to `plugin`; an organization variable of the same name does it for every repository. Unknown values fall back to the defaults.
+
 **Formal review (CEL-263).** When the org secrets `CLAUDE_REVIEW_APP_CLIENT_ID` and `CLAUDE_REVIEW_APP_PRIVATE_KEY` are set, `claude_code_review.yml` also submits the result as a pull request review from the **Cell-Ed Claude Review** GitHub App, on the reviewed head commit:
 
 - **Approve** when Claude ends with `VERDICT: APPROVE`.
@@ -55,7 +66,10 @@ The second one matters: a push can land between the review's head check and its 
 **Setting up the app** (org admin, once):
 1. Organization settings → Developer settings → GitHub Apps → New GitHub App, named "Cell-Ed Claude Review".
 2. Set any homepage URL and turn the webhook off.
-3. Repository permissions: Pull requests **Read and write**, Contents **Read**, Metadata **Read**. Install it on **this organization only**.
+3. Repository permissions: Pull requests **Read and write**, Contents **Read and write**, Metadata **Read**. Install it on **this organization only**.
+   - Contents must be **write**: GitHub only counts approvals from reviewers who can push to the repository. With Contents read, the approval is posted but shows `canPush=false` and doesn't meet the rule.
+   - The review job's token is still limited to `pull-requests: write`, so the job can't push.
+   - Keep the private key only in the org secret: anyone holding it could mint a token that pushes.
 4. Create a private key, then install the app on the repositories that use the review.
 5. Add org Actions secrets `CLAUDE_REVIEW_APP_CLIENT_ID` (the app's Client ID) and `CLAUDE_REVIEW_APP_PRIVATE_KEY` (the whole `.pem`), available to those repositories.
 
