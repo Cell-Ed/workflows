@@ -43,12 +43,12 @@ Both need the org secret `CLAUDE_CODE_OAUTH_TOKEN` and the Claude GitHub App.
 
 | Variable (input) | Values | Default |
 |---|---|---|
-| `CLAUDE_REVIEW_STYLE` (`review_style`) | `plugin`: the code-review plugin. `trace`: one reviewer that traces every changed entry point from input to database and back, checks access, limits, failure paths, concurrency and data exposure, and on later pushes re-reviews against its own last review and the author's answers | `plugin` |
-| `CLAUDE_REVIEW_MODEL` (`review_model`) | a model id, e.g. `claude-sonnet-5-5` | the action's default |
-| `CLAUDE_REVIEW_EFFORT` (`review_effort`) | `low`, `medium`, `high`, `xhigh`, `max` | the default |
-| `CLAUDE_REVIEW_TRIAL` (`review_trial`) | `true`: run both styles; the plugin still submits the formal review, the trace review posts its own comment only and never fails the checks | `false` |
+| `CLAUDE_REVIEW_STYLE` (`review_style`) | `trace`: one reviewer that traces every changed entry point from input to database and back, checks access, limits, failure paths, concurrency and data exposure, and on later pushes re-reviews against its own last review and the author's answers. `plugin`: the code-review plugin | `trace` |
+| `CLAUDE_REVIEW_MODEL` (`review_model`) | a model id | `claude-sonnet-5-5` |
+| `CLAUDE_REVIEW_EFFORT` (`review_effort`) | `low`, `medium`, `high`, `xhigh`, `max` | `high` |
+| `CLAUDE_REVIEW_TRIAL` (`review_trial`) | `true`: also run the other style; the chosen style still submits the formal review, the other posts its own comment only and never fails the checks | `false` |
 
-The trace review reads the pull request from files the workflow prepares (the diff, the conversation, its previous review and what changed since), and runs with read-only tools: file reads and read-only `git`, no other commands, no GitHub access, no writes. On 14 Oct 2026, trace with Sonnet at high effort blocked a change with three high-severity security findings that the plugin approved; the trial is to confirm that on real pull requests before trace becomes the default. Unknown values fall back to the defaults.
+The trace review reads the pull request from files the workflow prepares (the diff, the conversation, its previous review and what changed since), and runs with read-only tools: file reads and read-only `git`, no other commands, no GitHub access, no writes. Trace on Sonnet at high effort is the review standard (lead, 14 Oct 2026): it blocked a change on three high-severity security findings that the plugin approved. To fall back to the plugin for one repository, set its `CLAUDE_REVIEW_STYLE` variable to `plugin`; an organization variable of the same name does it for every repository. Unknown values fall back to the defaults.
 
 **Formal review (CEL-263).** When the org secrets `CLAUDE_REVIEW_APP_CLIENT_ID` and `CLAUDE_REVIEW_APP_PRIVATE_KEY` are set, `claude_code_review.yml` also submits the result as a pull request review from the **Cell-Ed Claude Review** GitHub App, on the reviewed head commit:
 

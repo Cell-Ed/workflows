@@ -1,4 +1,5 @@
-# Reviews a pull request with Claude Code's code-review plugin, then posts one
+# Reviews a pull request with Claude (a trace review by default, or the code-review
+# plugin), then posts one
 # outcome comment on the PR and updates it in place on every later push.
 #
 # When the Cell-Ed Claude Review GitHub App is configured (org secrets
@@ -39,17 +40,18 @@
 # else the caller repository's variable, else the default. Callers don't need to
 # change: set the variables in a repository's settings to opt it in (a called
 # workflow sees the caller repository's variables, per GitHub's documentation).
-#   review_style    CLAUDE_REVIEW_STYLE    plugin (default): the code-review
-#                   plugin. trace: one reviewer that traces every changed entry
-#                   point end to end and re-reviews against its last review.
-#   review_model    CLAUDE_REVIEW_MODEL    model id; empty: the action's default.
-#   review_effort   CLAUDE_REVIEW_EFFORT   low | medium | high | xhigh | max.
-#   review_trial    CLAUDE_REVIEW_TRIAL    true: run both styles; the plugin
-#                   still submits the formal review, the trace review posts a
-#                   comment only and never fails the run.
-# On 14 Oct 2026 the trace style (Sonnet, high effort) blocked a change with
-# three high-severity security findings that the plugin approved; the trial is
-# to confirm that on real PRs before making trace the default.
+#   review_style    CLAUDE_REVIEW_STYLE    trace (default): one reviewer that
+#                   traces every changed entry point end to end and re-reviews
+#                   against its last review. plugin: the code-review plugin.
+#   review_model    CLAUDE_REVIEW_MODEL    model id (default claude-sonnet-5-5).
+#   review_effort   CLAUDE_REVIEW_EFFORT   low | medium | high | xhigh | max
+#                   (default high).
+#   review_trial    CLAUDE_REVIEW_TRIAL    true: also run the other style as a
+#                   comment only, to compare; it never fails the run.
+# Trace on Sonnet at high effort is the review standard (lead, 14 Oct 2026): it
+# blocked a change on three high-severity security findings that the plugin
+# approved. To fall back for one repository, or for every repository with an
+# organization variable, set CLAUDE_REVIEW_STYLE=plugin.
 
 name: (claude) Code review on pull requests
 
@@ -62,22 +64,22 @@ on:
         type: string
         default: '["staging"]'
       review_style:
-        description: 'plugin or trace; empty: the CLAUDE_REVIEW_STYLE variable, else plugin'
+        description: 'trace or plugin; empty: the CLAUDE_REVIEW_STYLE variable, else trace'
         required: false
         type: string
         default: ''
       review_model:
-        description: 'Model id; empty: the CLAUDE_REVIEW_MODEL variable, else the action default'
+        description: 'Model id; empty: the CLAUDE_REVIEW_MODEL variable, else claude-sonnet-5-5'
         required: false
         type: string
         default: ''
       review_effort:
-        description: 'Effort level; empty: the CLAUDE_REVIEW_EFFORT variable, else the default'
+        description: 'Effort level; empty: the CLAUDE_REVIEW_EFFORT variable, else high'
         required: false
         type: string
         default: ''
       review_trial:
-        description: 'true runs both styles, trace as comment only; empty: the CLAUDE_REVIEW_TRIAL variable'
+        description: 'true also runs the other style as a comment only; empty: the CLAUDE_REVIEW_TRIAL variable'
         required: false
         type: string
         default: ''
@@ -120,18 +122,19 @@ jobs:
       - name: Resolve review settings
         id: resolve
         env:
-          STYLE: ${{ inputs.review_style || vars.CLAUDE_REVIEW_STYLE || 'plugin' }}
-          MODEL: ${{ inputs.review_model || vars.CLAUDE_REVIEW_MODEL || '' }}
-          EFFORT: ${{ inputs.review_effort || vars.CLAUDE_REVIEW_EFFORT || '' }}
+          STYLE: ${{ inputs.review_style || vars.CLAUDE_REVIEW_STYLE || 'trace' }}
+          MODEL: ${{ inputs.review_model || vars.CLAUDE_REVIEW_MODEL || 'claude-sonnet-5-5' }}
+          EFFORT: ${{ inputs.review_effort || vars.CLAUDE_REVIEW_EFFORT || 'high' }}
           TRIAL: ${{ inputs.review_trial || vars.CLAUDE_REVIEW_TRIAL || 'false' }}
         run: |
-          # Anything unexpected falls back to today's behaviour (plugin, no trial).
-          case "$STYLE" in plugin|trace) ;; *) echo "Unknown review style '$STYLE'; using plugin."; STYLE=plugin ;; esac
-          case "$EFFORT" in ''|low|medium|high|xhigh|max) ;; *) echo "Unknown effort '$EFFORT'; using the default."; EFFORT= ;; esac
-          if ! printf '%s' "$MODEL" | grep -Eq '^[a-z0-9.-]{0,64}$'; then echo "Invalid model id; using the default."; MODEL=; fi
+          # Anything unexpected falls back to the standard (trace, Sonnet, high effort, no trial).
+          case "$STYLE" in plugin|trace) ;; *) echo "Unknown review style '$STYLE'; using trace."; STYLE=trace ;; esac
+          case "$EFFORT" in low|medium|high|xhigh|max) ;; *) echo "Unknown effort '$EFFORT'; using high."; EFFORT=high ;; esac
+          if ! printf '%s' "$MODEL" | grep -Eq '^[a-z0-9.-]{1,64}$'; then echo "Invalid model id; using claude-sonnet-5-5."; MODEL=claude-sonnet-5-5; fi
           if [ "$TRIAL" = "true" ]; then
+            # The chosen style submits the formal review; the other one only comments.
             echo 'styles=["plugin","trace"]' >> "$GITHUB_OUTPUT"
-            echo "formal_style=plugin" >> "$GITHUB_OUTPUT"
+            echo "formal_style=$STYLE" >> "$GITHUB_OUTPUT"
           else
             echo "styles=[\"$STYLE\"]" >> "$GITHUB_OUTPUT"
             echo "formal_style=$STYLE" >> "$GITHUB_OUTPUT"
@@ -286,7 +289,8 @@ jobs:
       - name: Run Claude Code Review
         id: claude-review
         continue-on-error: true
-        uses: anthropics/claude-code-action@v1
+        # Pinned to a commit SHA (third-party actions are pinned); v1.0.248.
+        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: ${{ matrix.style == 'plugin' && 'https://github.com/anthropics/claude-code.git' || '' }}
