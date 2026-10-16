@@ -46,8 +46,12 @@
 # value). The job has contents: read only and uses no secrets. The repository's own
 # .gitleaks.toml and .gitleaksignore apply, and inline "gitleaks:allow" comments are
 # ignored, so a finding is suppressed only by a .gitleaksignore (or .gitleaks.toml)
-# change that goes through review. The gitleaks version and checksum are pinned in
-# the job's env block, with the steps to update them.
+# change that goes through review. A repository's own .gitleaks.toml replaces
+# gitleaks' default rules unless it contains [extend] with useDefault = true, so a
+# custom config must extend the defaults. A newer event on the same pull request
+# cancels the scan still running for the superseded one (CEL-478). The gitleaks
+# version and checksum are pinned in the job's env block, with the steps to update
+# them.
 #
 # Review styles (CEL-263). Each setting comes from the input of the same name,
 # else the caller repository's variable, else the default. Callers don't need to
@@ -115,6 +119,12 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # A newer event on the same pull request cancels the scan of the superseded run.
+    # The newest run scans base..head, which includes every earlier commit, so
+    # nothing goes unscanned.
+    concurrency:
+      group: gitleaks-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     permissions:
       contents: read
     env:
