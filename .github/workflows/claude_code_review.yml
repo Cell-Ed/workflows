@@ -174,6 +174,9 @@ jobs:
           # Full history: the trace review reads git history, and finds the
           # commit its previous review covered.
           fetch-depth: 0
+          # The reviewer can read files and its output is posted on the PR, so the job's
+          # token must not be left in .git/config. Nothing here pushes or fetches later.
+          persist-credentials: false
 
       # The trace review gets everything it needs as files, so it runs with
       # read-only tools and no GitHub access of its own.
@@ -193,10 +196,13 @@ jobs:
           gh pr view "$PR_NUMBER" --repo "$REPO" \
             --json title,body,baseRefName,headRefName,author,comments,reviews > "$DIR/pr.json"
           # This style's previous outcome comment, and the commit it reviewed.
+          # --paginate prints one array per page; slurp them so `last` sees every comment.
           gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-            --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- claude-code-review-outcome:trace -->")))] | last | .body // empty' \
+            | jq -rs '[.[][] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- claude-code-review-outcome:trace -->")))] | last | .body // empty' \
             > "$DIR/previous-review.md"
-          PREVIOUS_SHA=$(grep -oE 'reviewed-sha: [0-9a-f]{40}' "$DIR/previous-review.md" | tail -n 1 | cut -d' ' -f2 || true)
+          # The workflow writes reviewed-sha on the comment's second line, before the review text;
+          # take that one, so a reviewed-sha line inside the review text can't redirect the diff.
+          PREVIOUS_SHA=$(sed -n '2p' "$DIR/previous-review.md" | grep -oE 'reviewed-sha: [0-9a-f]{40}' | cut -d' ' -f2 || true)
           if [ -n "$PREVIOUS_SHA" ] && git cat-file -e "$PREVIOUS_SHA^{commit}" 2>/dev/null; then
             git diff "$PREVIOUS_SHA" "$HEAD_SHA" > "$DIR/since-previous-review.patch"
           fi
@@ -221,10 +227,13 @@ jobs:
           anything else that must be fixed before merging; otherwise
           `VERDICT: APPROVE`. Minor suggestions alone do not block approval.'
           if [ "$REVIEW_STYLE" = "trace" ]; then
-            # Read-only: file tools and read-only git. No shell beyond that, no GitHub access, no writes.
+            # File tools inside the checkout and four git commands (diff, log, show, blame). No other shell,
+            # no GitHub access, no Write or Edit.
             ARGS="$ARGS --max-turns 150"
             ARGS="$ARGS --allowedTools \"Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)\""
-            ARGS="$ARGS --disallowedTools \"Write,Edit,NotebookEdit,WebFetch,WebSearch\""
+            # The deny rules also cover Grep and Glob: no process environment (/proc holds the
+            # OAuth token), no runner temp files, no git config.
+            ARGS="$ARGS --disallowedTools \"Write,Edit,NotebookEdit,WebFetch,WebSearch,Read(//proc/**),Read(//sys/**),Read(//home/runner/work/_temp/**),Read(./.git/config),Read(./.git/**/config)\""
             PROMPT="Review pull request $REPO#$PR_NUMBER as the one reviewer whose verdict decides whether it may
           merge. Find everything that matters in this round, so the author fixes it once.
 
@@ -332,6 +341,14 @@ jobs:
             ' "$EXECUTION_FILE" 2>/dev/null || true)
           fi
 
+          # The review text is posted publicly. Never post anything shaped like a credential
+          # (GitHub and Anthropic tokens, auth headers); if one appears, the run approves nothing.
+          LEAK=""
+          if printf '%s' "$SUMMARY" | grep -qiE 'gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_-]{10,}|x-access-token|authorization: *(basic|bearer)'; then
+            LEAK=true
+            SUMMARY=$(printf '%s' "$SUMMARY" | sed -E 's/gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9_-]{10,}/[redacted]/g; s/(x-access-token|[Aa]uthorization: *([Bb]asic|[Bb]earer))[^[:space:]]*( *[^[:space:]]+)?/[redacted]/g')
+          fi
+
           if [ "$REVIEW_OUTCOME" = "success" ]; then
             STATUS_LINE="✅ Review job completed."
           else
@@ -343,7 +360,7 @@ jobs:
           # shellcheck disable=SC2016 # literal backticks in the pattern
           VERDICT=$(printf '%s\n' "$SUMMARY" | grep -oE '^`?VERDICT: (APPROVE|REQUEST_CHANGES)`?[[:space:]]*$' \
             | tail -n 1 | grep -oE 'APPROVE|REQUEST_CHANGES' || true)
-          if [ "$REVIEW_OUTCOME" != "success" ]; then VERDICT=""; fi
+          if [ "$REVIEW_OUTCOME" != "success" ] || [ -n "$LEAK" ]; then VERDICT=""; fi
           # A newer push gets its own review, so never approve or reject a commit that is no
           # longer the PR head. Checked here so the outcome comment can say so.
           HEAD_MOVED=""
@@ -379,6 +396,8 @@ jobs:
               echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved._"
             elif [ -n "$HEAD_MOVED" ]; then
               echo "_No formal review submitted: the PR moved to ${HEAD_MOVED:0:7} during the review, which gets its own review._"
+            elif [ -n "$LEAK" ]; then
+              echo "_No formal review submitted: the review text contained something shaped like a credential (redacted above), so nothing is approved._"
             elif [ -z "$VERDICT" ]; then
               echo "_No formal review submitted: the run produced no verdict, so nothing is approved._"
             elif [ "$CLAUDE_REVIEW_APP_CONFIGURED" != "true" ]; then
