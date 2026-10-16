@@ -36,6 +36,19 @@
 # A called workflow cannot hold more permissions than its caller grants, so the
 # caller's permissions block is required.
 #
+# Secret scan (CEL-476). This workflow also runs a gitleaks job, "Secret scan
+# (gitleaks)", on every pull request event, whatever the review settings say:
+# drafts, forks, Dependabot, staging PRs without the claude-review label and
+# labeled events included, so a later skipped run never hides an earlier failure.
+# It scans only the commits the pull request adds (base..head, merge commits
+# excluded), not the repository's history; a full-history scan is CEL-477. A
+# finding fails the job with redacted output (file, line, rule, commit; never the
+# value). The job has contents: read only and uses no secrets. The repository's own
+# .gitleaks.toml and .gitleaksignore apply, and inline "gitleaks:allow" comments are
+# ignored, so a finding is suppressed only by a .gitleaksignore (or .gitleaks.toml)
+# change that goes through review. The gitleaks version and checksum are pinned in
+# the job's env block, with the steps to update them.
+#
 # Review styles (CEL-263). Each setting comes from the input of the same name,
 # else the caller repository's variable, else the default. Callers don't need to
 # change: set the variables in a repository's settings to opt it in (a called
@@ -94,6 +107,55 @@ on:
         required: false
 
 jobs:
+  # Scans the commits this pull request adds for secrets (CEL-476). Independent of
+  # the review jobs below: no needs, and the only condition is that it is a pull
+  # request event, so it also runs for drafts, forks, Dependabot and every label.
+  gitleaks:
+    name: Secret scan (gitleaks)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # To update gitleaks: pick a v8 release at least 14 days old, download
+      # gitleaks_<version>_checksums.txt from it, copy the linux_x64 tarball's
+      # SHA-256 below, check it against the file you download yourself, run the
+      # scan locally with that version, and change both values in one commit.
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - name: Check out the pull request with its full history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks (pinned version, checksum verified)
+        run: |
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          # Fails the job, and nothing is extracted, unless the download matches.
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          "$RUNNER_TEMP/gitleaks/gitleaks" version
+
+      - name: Scan the commits this pull request adds
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # Output is redacted and no report file is written. A finding exits 1.
+          "$RUNNER_TEMP/gitleaks/gitleaks" git \
+            --log-opts="--no-merges ${BASE_SHA}..${HEAD_SHA}" \
+            --redact --verbose --no-banner --no-color \
+            --ignore-gitleaks-allow --exit-code 1 .
+
   # Resolves the review settings once and decides which styles run.
   settings:
     # Drafts wait for ready_for_review. Fork and Dependabot PRs get no secrets,
