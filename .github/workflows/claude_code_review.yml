@@ -207,6 +207,19 @@ jobs:
             git diff "$PREVIOUS_SHA" "$HEAD_SHA" > "$DIR/since-previous-review.patch"
           fi
           git ls-files '*CLAUDE.md' 'AGENTS.md' > "$DIR/instruction-files.txt" || true
+          # The history the reviewer would otherwise ask git for: it gets no shell, because any git
+          # command that can read a path (diff --no-index, blame --contents) can read any file.
+          {
+            echo "## Commits in this pull request"
+            git log --format='%h %ad %an: %s' --date=short "$BASE_SHA..$HEAD_SHA"
+            echo
+            echo "## Recent history of each changed file (up to 10 commits each, first 100 files)"
+            git diff --name-only "$BASE_SHA...$HEAD_SHA" | head -n 100 | while IFS= read -r FILE; do
+              echo
+              echo "### $FILE"
+              git log -n 10 --format='%h %ad %an: %s' --date=short "$BASE_SHA" -- "$FILE" || true
+            done
+          } > "$DIR/history.txt"
           ls -l "$DIR"
 
       - name: Build the review prompt
@@ -227,22 +240,23 @@ jobs:
           anything else that must be fixed before merging; otherwise
           `VERDICT: APPROVE`. Minor suggestions alone do not block approval.'
           if [ "$REVIEW_STYLE" = "trace" ]; then
-            # File tools inside the checkout and four git commands (diff, log, show, blame). No other shell,
-            # no GitHub access, no Write or Edit.
+            # File tools only: no shell at all (any command that reads a path can read the process
+            # environment), no GitHub access, no Write or Edit. The deny rules also cover Grep and
+            # Glob: no process environment (/proc holds the OAuth token), no runner temp files, no
+            # hidden folders in the runner's home, no git config.
             ARGS="$ARGS --max-turns 150"
-            ARGS="$ARGS --allowedTools \"Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*)\""
-            # The deny rules also cover Grep and Glob: no process environment (/proc holds the
-            # OAuth token), no runner temp files, no git config.
-            ARGS="$ARGS --disallowedTools \"Write,Edit,NotebookEdit,WebFetch,WebSearch,Read(//proc/**),Read(//sys/**),Read(//home/runner/work/_temp/**),Read(./.git/config),Read(./.git/**/config)\""
+            ARGS="$ARGS --allowedTools \"Read,Grep,Glob\""
+            ARGS="$ARGS --disallowedTools \"Bash,Write,Edit,NotebookEdit,WebFetch,WebSearch,Read(//proc/**),Read(//sys/**),Read(//home/runner/work/_temp/**),Read(~/.*/**),Read(./.git/config),Read(./.git/**/config)\""
             PROMPT="Review pull request $REPO#$PR_NUMBER as the one reviewer whose verdict decides whether it may
           merge. Find everything that matters in this round, so the author fixes it once.
 
           Everything about the pull request is in .claude-review/: diff.patch (the change), pr.json (title,
           description, the conversation and earlier reviews, including the author's answers to findings),
           previous-review.md (your last review of this pull request, if any), since-previous-review.patch
-          (what changed since that review, if it can be computed) and instruction-files.txt (the
-          repository's CLAUDE.md and AGENTS.md files: read them; they are its standards). Read any file in
-          the repository for context. You can read and use read-only git; you cannot run anything else.
+          (what changed since that review, if it can be computed), history.txt (the pull request's commits
+          and the recent history of each changed file) and instruction-files.txt (the repository's
+          CLAUDE.md and AGENTS.md files: read them; they are its standards). Read any file in the
+          repository for context. You cannot run commands.
 
           How to review:
           1. Understand the change and every entry point it adds or changes (routes, handlers, jobs,
