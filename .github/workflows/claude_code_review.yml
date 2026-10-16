@@ -120,8 +120,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # A newer event on the same pull request cancels the scan of the superseded run.
-    # The newest run scans base..head, which includes every earlier commit, so
-    # nothing goes unscanned.
+    # The newest run scans base..head, which includes every earlier commit that is
+    # still in the pull request, so none of those goes unscanned. A commit dropped by
+    # a force-push is not rescanned.
     concurrency:
       group: gitleaks-${{ github.repository }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
