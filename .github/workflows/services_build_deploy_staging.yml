@@ -7,8 +7,6 @@ on:
         required: true
       NPM_CI_CD_ACCESS_TOKEN:
         required: true
-      SHIELDS_GH_TOKEN:
-        required: true
 env:
   APP_ENV: stg
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -120,7 +118,7 @@ jobs:
       - name: Clean Coverage Badge Cache
         uses: ./workflows_repository/.github/cleanGithubImagesCache
         with:
-          GH_TOKEN: ${{ secrets.SHIELDS_GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           REPO_NAME: ${{ github.repository }}
 
       - name: Create .env File if Exists
