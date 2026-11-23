@@ -12,9 +12,11 @@
 # the app secrets, only the outcome comment is posted.
 #
 # The review check itself fails (red) when the verdict is Request changes, with an
-# error linking the outcome comment, and passes on Approve (CEL-649). This holds
+# error linking the outcome comment, and passes otherwise (CEL-649). This holds
 # with or without the app, so a blocking review never sits under a green check.
-# A failed review run fails the check as before; a trial leg never fails it.
+# A failed review run fails the check as before; a run with no verdict passes;
+# a trial leg never fails it. Answering a finding in the conversation doesn't
+# clear a red check: the next review (a push, or re-running the job) does.
 #
 # PRs into a branch listed in request_only_branches (default: staging) are
 # reviewed only on request: add the claude-review label, and every later push
