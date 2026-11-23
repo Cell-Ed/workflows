@@ -16,8 +16,8 @@
 # (CEL-649) or a successful run produced no verdict (CEL-651): no VERDICT line, the
 # review action didn't run (as on a PR that edits its own review caller), a
 # credential-shaped string in the review, or a PR head that couldn't be confirmed.
-# It still passes when the PR moved on during the review, since the newer commit
-# gets its own. This holds with or without the app. A failed review run fails the
+# It still passes when a verdict is set aside because the PR moved on during the
+# review, since the newer commit gets its own. This holds with or without the app. A failed review run fails the
 # check as before; a trial leg never fails it. Answering a finding in the conversation doesn't
 # clear a red check: the next review (a push, or re-running the job) does.
 #
@@ -459,9 +459,9 @@ jobs:
           fi
           # Why a run that succeeded has no verdict; the last step fails the check on it (CEL-651).
           # Empty when there is a verdict, when the run failed (the "review failed" step covers
-          # that), or when the PR moved on (the newer commit gets its own review). A skipped
-          # claude-code-action (for example on a PR that edits its own review caller) lands on
-          # "missing", so the check can't go green without a review.
+          # that), or when a verdict was set aside because the PR moved on (the newer commit gets
+          # its own review). A skipped claude-code-action (for example on a PR that edits its own
+          # review caller) lands on "missing", so the check can't go green without a review.
           NO_VERDICT_REASON=""
           if [ "$REVIEW_OUTCOME" = "success" ] && [ -z "$VERDICT" ]; then
             if [ -n "$LEAK" ]; then NO_VERDICT_REASON=leak
