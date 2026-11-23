@@ -65,6 +65,8 @@ The app's approval counts toward the branch rule's required approvals. In the br
 
 The second one matters: a push can land between the review's head check and its approval, so the approval arrives *after* the push but names the older commit. Dismissal doesn't catch that. Requiring approval of the latest push does, so an approval of an older commit never satisfies the rule. Without the two secrets, only the outcome comment is posted.
 
+**Check fails on Request changes (CEL-649).** The review job's check is red whenever the verdict is `REQUEST_CHANGES`, with an error that links the outcome comment, and green on `APPROVE`. It holds whether or not the app is configured, so the merge box never shows a green "Ready to merge" over a blocking review. A failed review run fails the check as before; a run with no verdict, or one whose PR head moved on, doesn't fail it; a trial leg never does. This is the interim guard: the lasting one is a ruleset that requires the app's approval (CEL-217).
+
 **Setting up the app** (org admin, once):
 1. Organization settings → Developer settings → GitHub Apps → New GitHub App, named "Cell-Ed Claude Review".
 2. Set any homepage URL and turn the webhook off.

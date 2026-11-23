@@ -11,6 +11,11 @@
 # or a head commit that moved on during the review submits no approval. Without
 # the app secrets, only the outcome comment is posted.
 #
+# The review check itself fails (red) when the verdict is Request changes, with an
+# error linking the outcome comment, and passes on Approve (CEL-649). This holds
+# with or without the app, so a blocking review never sits under a green check.
+# A failed review run fails the check as before; a trial leg never fails it.
+#
 # PRs into a branch listed in request_only_branches (default: staging) are
 # reviewed only on request: add the claude-review label, and every later push
 # is reviewed while the label stays on. PRs into any other branch, such as the
@@ -581,3 +586,18 @@ jobs:
       - name: Fail the job if the review failed
         if: steps.claude-review.outcome == 'failure'
         run: exit 1
+
+      # A blocking verdict turns the check red (CEL-649), so the merge box can't show a green
+      # "Ready to merge" over a Request-changes review while no ruleset requires approval
+      # (CEL-217). Runs last, after the outcome comment and the formal review are posted, and
+      # whether or not the app is configured. Trial legs never get here.
+      - name: Fail the check if the review requests changes
+        if: ${{ !cancelled() && env.FORMAL == 'true' && steps.outcome.outputs.verdict == 'REQUEST_CHANGES' }}
+        env:
+          COMMENT_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}#issuecomment-${{ steps.outcome.outputs.comment_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          MESSAGE="Claude Code Review requested changes on ${HEAD_SHA:0:7}. Fix or answer the blocking findings: $COMMENT_URL"
+          echo "::error title=Claude Code Review: changes requested::$MESSAGE"
+          echo "❌ $MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
