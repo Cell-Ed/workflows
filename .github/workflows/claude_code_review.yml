@@ -21,10 +21,11 @@
 # check as before; a trial leg never fails it. Answering a finding in the conversation doesn't
 # clear a red check: the next review (a push, or re-running the job) does.
 #
-# PRs into a branch listed in request_only_branches (default: staging) are
-# reviewed only on request: add the claude-review label, and every later push
-# is reviewed while the label stays on. PRs into any other branch, such as the
-# staging -> main release PRs, are always reviewed.
+# Only PRs into a branch listed in always_review_branches (default: main and
+# master), such as the staging -> main release PRs, are reviewed on every push.
+# PRs into any other branch (staging, integration branches such as localization,
+# stacked PRs into a feature branch) are reviewed only on request: add the
+# claude-review label, and every later push is reviewed while the label stays on.
 #
 # Call it from the repository being reviewed, in
 # .github/workflows/claude-code-review.yml:
@@ -48,7 +49,7 @@
 #
 # Secret scan (CEL-476). This workflow also runs a gitleaks job, "Secret scan
 # (gitleaks)", on every pull request event, whatever the review settings say:
-# drafts, forks, Dependabot, staging PRs without the claude-review label and
+# drafts, forks, Dependabot, unlabeled PRs outside always_review_branches and
 # labeled events included, so a later skipped run never hides an earlier failure.
 # It scans only the commits the pull request adds (base..head, merge commits
 # excluded), not the repository's history; a full-history scan is CEL-477. A
@@ -83,11 +84,11 @@ name: (claude) Code review on pull requests
 on:
   workflow_call:
     inputs:
-      request_only_branches:
-        description: 'JSON array of base branches whose PRs are reviewed only with the claude-review label'
+      always_review_branches:
+        description: 'JSON array of base branches whose PRs are always reviewed; PRs into any other branch need the claude-review label'
         required: false
         type: string
-        default: '["staging"]'
+        default: '["main","master"]'
       review_style:
         description: 'trace or plugin; empty: the CLAUDE_REVIEW_STYLE variable, else trace'
         required: false
@@ -181,7 +182,7 @@ jobs:
         (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
         (github.event.action != 'labeled' && (
           contains(github.event.pull_request.labels.*.name, 'claude-review') ||
-          !contains(fromJSON(inputs.request_only_branches), github.event.pull_request.base.ref)
+          contains(fromJSON(inputs.always_review_branches), github.event.pull_request.base.ref)
         ))
       )
     runs-on: ubuntu-latest
