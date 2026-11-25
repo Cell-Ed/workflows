@@ -13,4 +13,6 @@ jobs:
       issues: write
       id-token: write
     uses: ./.github/workflows/claude_code_review.yml
+    with:
+      always_review_branches: '["main","master","chore/cel-662-review-main-only"]'
     secrets: inherit
