@@ -12,5 +12,5 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-    uses: Cell-Ed/workflows/.github/workflows/claude_code_review.yml@main
+    uses: ./.github/workflows/claude_code_review.yml
     secrets: inherit
