@@ -11,10 +11,21 @@
 # or a head commit that moved on during the review submits no approval. Without
 # the app secrets, only the outcome comment is posted.
 #
-# PRs into a branch listed in request_only_branches (default: staging) are
-# reviewed only on request: add the claude-review label, and every later push
-# is reviewed while the label stays on. PRs into any other branch, such as the
-# staging -> main release PRs, are always reviewed.
+# The review check itself is green only when the review approves. It fails (red)
+# with an error linking the outcome comment when the verdict is Request changes
+# (CEL-649) or a successful run produced no verdict (CEL-651): no VERDICT line, the
+# review action didn't run (as on a PR that edits its own review caller), a
+# credential-shaped string in the review, or a PR head that couldn't be confirmed.
+# It still passes when a verdict is set aside because the PR moved on during the
+# review, since the newer commit gets its own. This holds with or without the app. A failed review run fails the
+# check as before; a trial leg never fails it. Answering a finding in the conversation doesn't
+# clear a red check: the next review (a push, or re-running the job) does.
+#
+# Only PRs into a branch listed in always_review_branches (default: main and
+# master), such as the staging -> main release PRs, are reviewed on every push.
+# PRs into any other branch (staging, integration branches such as localization,
+# stacked PRs into a feature branch) are reviewed only on request: add the
+# claude-review label, and every later push is reviewed while the label stays on.
 #
 # Call it from the repository being reviewed, in
 # .github/workflows/claude-code-review.yml:
@@ -38,7 +49,7 @@
 #
 # Secret scan (CEL-476). This workflow also runs a gitleaks job, "Secret scan
 # (gitleaks)", on every pull request event, whatever the review settings say:
-# drafts, forks, Dependabot, staging PRs without the claude-review label and
+# drafts, forks, Dependabot, unlabeled PRs outside always_review_branches and
 # labeled events included, so a later skipped run never hides an earlier failure.
 # It scans only the commits the pull request adds (base..head, merge commits
 # excluded), not the repository's history; a full-history scan is CEL-477. A
@@ -46,8 +57,10 @@
 # value). The job has contents: read only and uses no secrets. The repository's own
 # .gitleaks.toml and .gitleaksignore apply, and inline "gitleaks:allow" comments are
 # ignored, so a finding is suppressed only by a .gitleaksignore (or .gitleaks.toml)
-# change that goes through review. The gitleaks version and checksum are pinned in
-# the job's env block, with the steps to update them.
+# change that goes through review. A repository's own .gitleaks.toml replaces
+# gitleaks' default rules unless it contains [extend] with useDefault = true, so a
+# custom config must extend the defaults. The gitleaks version and checksum are
+# pinned in the job's env block, with the steps to update them.
 #
 # Review styles (CEL-263). Each setting comes from the input of the same name,
 # else the caller repository's variable, else the default. Callers don't need to
@@ -71,11 +84,11 @@ name: (claude) Code review on pull requests
 on:
   workflow_call:
     inputs:
-      request_only_branches:
-        description: 'JSON array of base branches whose PRs are reviewed only with the claude-review label'
+      always_review_branches:
+        description: 'JSON array of base branches whose PRs are always reviewed; PRs into any other branch need the claude-review label'
         required: false
         type: string
-        default: '["staging"]'
+        default: '["main","master"]'
       review_style:
         description: 'trace or plugin; empty: the CLAUDE_REVIEW_STYLE variable, else trace'
         required: false
@@ -169,7 +182,7 @@ jobs:
         (github.event.action == 'labeled' && github.event.label.name == 'claude-review') ||
         (github.event.action != 'labeled' && (
           contains(github.event.pull_request.labels.*.name, 'claude-review') ||
-          !contains(fromJSON(inputs.request_only_branches), github.event.pull_request.base.ref)
+          contains(fromJSON(inputs.always_review_branches), github.event.pull_request.base.ref)
         ))
       )
     runs-on: ubuntu-latest
@@ -445,6 +458,18 @@ jobs:
             HEAD_MOVED="${CURRENT_HEAD:-unknown}"
             VERDICT=""
           fi
+          # Why a run that succeeded has no verdict; the last step fails the check on it (CEL-651).
+          # Empty when there is a verdict, when the run failed (the "review failed" step covers
+          # that), or when a verdict was set aside because the PR moved on (the newer commit gets
+          # its own review). A skipped claude-code-action (for example on a PR that edits its own
+          # review caller) lands on "missing", so the check can't go green without a review.
+          NO_VERDICT_REASON=""
+          if [ "$REVIEW_OUTCOME" = "success" ] && [ -z "$VERDICT" ]; then
+            if [ -n "$LEAK" ]; then NO_VERDICT_REASON=leak
+            elif [ "$HEAD_MOVED" = "unknown" ]; then NO_VERDICT_REASON=head-unknown
+            elif [ -z "$HEAD_MOVED" ]; then NO_VERDICT_REASON=missing
+            fi
+          fi
 
           {
             echo "$MARKER"
@@ -469,13 +494,13 @@ jobs:
             if [ "$FORMAL" != "true" ]; then
               echo "_Trial verdict: ${VERDICT:-none}. No formal review is submitted for a trial._"
             elif [ "$HEAD_MOVED" = "unknown" ]; then
-              echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved._"
+              echo "_No formal review submitted: the PR's current head couldn't be confirmed, so nothing is approved and the check fails. Re-run the job._"
             elif [ -n "$HEAD_MOVED" ]; then
               echo "_No formal review submitted: the PR moved to ${HEAD_MOVED:0:7} during the review, which gets its own review._"
             elif [ -n "$LEAK" ]; then
-              echo "_No formal review submitted: the review text contained something shaped like a credential (redacted above), so nothing is approved._"
+              echo "_No formal review submitted: the review text contained something shaped like a credential (redacted above), so nothing is approved and the check fails._"
             elif [ -z "$VERDICT" ]; then
-              echo "_No formal review submitted: the run produced no verdict, so nothing is approved._"
+              echo "_No formal review submitted: the run produced no verdict, so nothing is approved and the check fails. See the [run log]($RUN_URL)._"
             elif [ "$CLAUDE_REVIEW_APP_CONFIGURED" != "true" ]; then
               echo "_No formal review submitted: the Claude Review app isn't configured for this repository._"
             else
@@ -501,6 +526,7 @@ jobs:
           echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
 
           # Published last, so a failure anywhere above leaves no verdict to act on.
+          echo "no_verdict_reason=$NO_VERDICT_REASON" >> "$GITHUB_OUTPUT"
           echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
 
       # Mints a token for the Cell-Ed Claude Review app, scoped to this repository
@@ -579,3 +605,33 @@ jobs:
       - name: Fail the job if the review failed
         if: steps.claude-review.outcome == 'failure'
         run: exit 1
+
+      # The check is green only on an approval: a blocking verdict (CEL-649) or a successful run
+      # with no verdict (CEL-651) turns it red, so the merge box can't show a green "Ready to
+      # merge" over a review that didn't approve while no ruleset requires approval (CEL-217).
+      # Runs last, after the outcome comment and the formal review are posted, and whether or
+      # not the app is configured. Trial legs never get here.
+      - name: Fail the check unless the review approved
+        if: ${{ !cancelled() && env.FORMAL == 'true' && (steps.outcome.outputs.verdict == 'REQUEST_CHANGES' || steps.outcome.outputs.no_verdict_reason != '') }}
+        env:
+          COMMENT_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.pull_request.number }}#issuecomment-${{ steps.outcome.outputs.comment_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          VERDICT: ${{ steps.outcome.outputs.verdict }}
+          NO_VERDICT_REASON: ${{ steps.outcome.outputs.no_verdict_reason }}
+        run: |
+          SHORT_SHA="${HEAD_SHA:0:7}"
+          if [ "$VERDICT" = "REQUEST_CHANGES" ]; then
+            TITLE="Claude Code Review: changes requested"
+            MESSAGE="Claude Code Review requested changes on $SHORT_SHA. Fix or answer the blocking findings: $COMMENT_URL"
+          else
+            TITLE="Claude Code Review: no verdict"
+            case "$NO_VERDICT_REASON" in
+              leak) WHY="the review text contained something shaped like a credential" ;;
+              head-unknown) WHY="the PR's current head couldn't be confirmed" ;;
+              *) WHY="the review produced no verdict (for example, the review action didn't run)" ;;
+            esac
+            MESSAGE="Claude Code Review didn't approve $SHORT_SHA: $WHY. Re-run the job, or see the outcome comment: $COMMENT_URL"
+          fi
+          echo "::error title=$TITLE::$MESSAGE"
+          echo "❌ $MESSAGE" >> "$GITHUB_STEP_SUMMARY"
+          exit 1
